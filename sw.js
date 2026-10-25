@@ -1,6 +1,6 @@
 // 앱 파일을 캐시해 두고 오프라인에서도 열리게 한다.
 // 캐시를 먼저 보여 주고 뒤에서 새 버전을 받아 두므로, 업데이트는 다음 실행 때 반영된다.
-const CACHE = 'coloring-pad-v7';
+const CACHE = 'coloring-pad-v8';
 // 글꼴(Google Fonts)은 처음 한 번 받아 두고 계속 쓴다. 앱 버전이 바뀌어도 지우지 않는다
 const FONTS = 'coloring-pad-fonts';
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];

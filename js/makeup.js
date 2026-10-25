@@ -1,4 +1,4 @@
-import { $, $$, toast, uid, clamp, makeCanvas, freeCanvas, toBlob, loadImage, shareOrDownload, showScreen, hexToRgb, drawFit } from './util.js';
+import { $, $$, toast, uid, clamp, makeCanvas, freeCanvas, toBlob, loadImage, shareOrDownload, showScreen, hexToRgb, drawFit, pickFile } from './util.js';
 import { db, getFile, putFile, delFile, getSetting, setSetting } from './store.js';
 import { pressureOf } from './editor.js';
 import {
@@ -321,6 +321,7 @@ export async function initMakeup(opts) {
   rctx = raw.getContext('2d');
   prefs = { ...prefs, ...(await getSetting('makeupPrefs', {})) };
   bindFaceFit();
+  bindFaceGate();
 
   $('#mkSeg').addEventListener('click', (e) => {
     const b = e.target.closest('button');
@@ -1447,11 +1448,72 @@ export async function renderMakeupHome(container) {
         <div class="band"><div><div class="title">${esc(f.name)}</div><div class="sub">${f.custom ? '내가 넣은 얼굴' : '화장 · 액세서리'}</div></div></div></article>`;
     }),
   );
-  container.innerHTML = `<div class="grid faces">${cards.join('')}</div>`;
+  const addTile = `<button class="card tile" data-act="addface"><span class="ic">${ICON.plus}</span>내 사진 넣기<small class="hint">어른이 꾹 눌러요</small></button>`;
+  container.innerHTML = `<div class="grid faces">${cards.join('')}${addTile}</div>`;
+  homeContainer = container;
   container.querySelector('.grid').addEventListener('click', (e) => {
+    if (e.target.closest('[data-act=addface]')) {
+      openFaceGate();
+      return;
+    }
     const c = e.target.closest('[data-face]');
     if (c) openMakeup(all.find((f) => f.id === c.dataset.face));
   });
+}
+
+// ---------- 꾸미기 목록에서 바로 '내 사진 넣기' ----------
+// 아이가 실수로 못 넣도록 버튼을 1.2초 꾹 눌러야 풀린다. 사진 고르기 창은 '누르기' 동작 안에서만 열리므로
+// 꾹 눌러 풀린 뒤 손을 떼는 그 순간(클릭)에 연다
+let homeContainer = null;
+let gateArmed = false;
+
+function openFaceGate() {
+  gateArmed = false;
+  const b = $('#gateBtn');
+  b.classList.remove('armed', 'holding');
+  b.textContent = '꾹 눌러서 사진 고르기';
+  $('#dlgFaceGate').showModal();
+}
+
+function bindFaceGate() {
+  const dlg = $('#dlgFaceGate');
+  const b = $('#gateBtn');
+  let timer = 0;
+  const cancel = () => {
+    clearTimeout(timer);
+    b.classList.remove('holding');
+  };
+  b.addEventListener('pointerdown', () => {
+    if (gateArmed) return;
+    b.classList.add('holding');
+    timer = setTimeout(() => {
+      cancel();
+      gateArmed = true;
+      b.classList.add('armed');
+      b.textContent = '손을 떼면 사진을 골라요';
+    }, 1200);
+  });
+  b.addEventListener('pointerleave', cancel);
+  b.addEventListener('pointercancel', cancel);
+  b.addEventListener('pointerup', () => !gateArmed && cancel());
+  b.addEventListener('click', async () => {
+    if (!gateArmed) {
+      toast('어른이 버튼을 꾹 눌러 주세요');
+      return;
+    }
+    const f = await pickFile($('#fileFace'));
+    dlg.close();
+    if (!f) return;
+    toast('사진을 넣는 중…');
+    try {
+      const face = await addCustomFace(f);
+      openFaceFit(face, () => homeContainer && renderMakeupHome(homeContainer));
+    } catch (err) {
+      console.error(err);
+      toast('사진을 넣지 못했어요: ' + err.message);
+    }
+  });
+  dlg.addEventListener('click', (e) => e.target.closest('[data-act=close]') && dlg.close());
 }
 
 // ---------- 내가 넣은 얼굴 (가족·연예인 사진) ----------

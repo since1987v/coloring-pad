@@ -345,6 +345,8 @@ async function doAdd() {
   const clean = $('#addClean').checked;
   const photo = $('#addPhoto').checked;
   const title1 = $('#addTitle').value.trim();
+  // 한 장이면 쓸 부분을 먼저 고른다
+  const crop = lines.length === 1 && $('#addCrop').checked ? await chooseCrop(lines[0]) : null;
   const sampleByKey = new Map(samples.map((f) => [keyName(f.name), f]));
   const go = $('#addGo');
   go.disabled = true;
@@ -354,7 +356,7 @@ async function doAdd() {
     $('#addProgress').textContent = `${i + 1} / ${lines.length} 등록 중…`;
     const sample = lines.length === 1 && samples.length === 1 ? samples[0] : sampleByKey.get(keyName(f.name));
     try {
-      await importPicture({ file: f, sample, title: (lines.length === 1 && title1) || prettyName(f.name), category, tags, clean, photo });
+      await importPicture({ file: f, sample, title: (lines.length === 1 && title1) || prettyName(f.name), category, tags, clean, photo, crop });
       ok++;
     } catch (err) {
       console.error(err);
@@ -367,10 +369,82 @@ async function doAdd() {
   await refreshLibrary();
 }
 
+// 한 장을 넣을 때 쓸 부분을 고른다. 돌려주는 값: 원본 픽셀 기준 {x, y, w, h}, 전체를 쓰면 null
+function chooseCrop(file) {
+  return new Promise((resolve) => {
+    loadImage(file).then((img) => {
+      const dlg = $('#dlgCrop');
+      const c = $('#cropCanvas');
+      const box = $('#cropBox');
+      const wrap = $('#cropWrap');
+      const s = Math.min(Math.min(620, window.innerWidth - 110) / img.naturalWidth, Math.min(560, window.innerHeight * 0.58) / img.naturalHeight);
+      c.width = Math.round(img.naturalWidth * s);
+      c.height = Math.round(img.naturalHeight * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      let r = { x: c.width * 0.06, y: c.height * 0.06, w: c.width * 0.88, h: c.height * 0.88 };
+      const show = () => Object.assign(box.style, { left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px' });
+      show();
+      let drag = null;
+      const MIN = 40;
+      box.onpointerdown = (e) => {
+        drag = { corner: e.target.dataset?.c || '', x0: e.clientX, y0: e.clientY, r0: { ...r }, id: e.pointerId };
+        try {
+          wrap.setPointerCapture(e.pointerId);
+        } catch {}
+        e.preventDefault();
+      };
+      wrap.onpointermove = (e) => {
+        if (!drag || e.pointerId !== drag.id) return;
+        const dx = e.clientX - drag.x0;
+        const dy = e.clientY - drag.y0;
+        const o = drag.r0;
+        const k = drag.corner;
+        let { x, y, w, h } = o;
+        if (!k) {
+          x = Math.min(Math.max(0, o.x + dx), c.width - o.w);
+          y = Math.min(Math.max(0, o.y + dy), c.height - o.h);
+        } else {
+          if (k.includes('w')) {
+            x = Math.min(Math.max(0, o.x + dx), o.x + o.w - MIN);
+            w = o.x + o.w - x;
+          }
+          if (k.includes('e')) w = Math.min(Math.max(MIN, o.w + dx), c.width - o.x);
+          if (k.includes('n')) {
+            y = Math.min(Math.max(0, o.y + dy), o.y + o.h - MIN);
+            h = o.y + o.h - y;
+          }
+          if (k.includes('s')) h = Math.min(Math.max(MIN, o.h + dy), c.height - o.y);
+        }
+        r = { x, y, w, h };
+        show();
+      };
+      wrap.onpointerup = wrap.onpointercancel = () => (drag = null);
+      const done = (v) => {
+        dlg.onclick = dlg.oncancel = null;
+        dlg.close();
+        resolve(v);
+      };
+      dlg.onclick = (e) => {
+        const act = e.target.closest('[data-act]')?.dataset.act;
+        if (act) done(act === 'crop' ? { x: r.x / s, y: r.y / s, w: r.w / s, h: r.h / s } : null);
+      };
+      dlg.oncancel = () => done(null);
+      dlg.showModal();
+    }, () => resolve(null));
+  });
+}
+
 // photo: 사진처럼 명암이 많은 그림이면 연한 스케치로 바꿔서, 칠할 칸이 진한 음영에 묻히지 않게 한다
-async function processLine(file, clean, photo = true) {
-  const img = await loadImage(file);
+// crop: 원본에서 잘라 쓸 부분 (chooseCrop 결과)
+async function processLine(file, clean, photo = true, crop = null) {
+  let img = await loadImage(file);
+  if (crop) {
+    const cc = makeCanvas(Math.max(1, Math.round(crop.w)), Math.max(1, Math.round(crop.h)));
+    cc.getContext('2d').drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, cc.width, cc.height);
+    img = cc;
+  }
   const c = drawFit(img, WORK_MAX, '#fff', true);
+  if (crop) freeCanvas(img);
   if (photo && looksLikePhoto(c)) photoToSketch(c);
   else if (clean) cleanLineArt(c);
   try {
@@ -392,8 +466,8 @@ async function attachSample(meta, file) {
   }
 }
 
-async function importPicture({ file, sample, title, category, tags, clean, photo }) {
-  const line = await processLine(file, clean, photo);
+async function importPicture({ file, sample, title, category, tags, clean, photo, crop }) {
+  const line = await processLine(file, clean, photo, crop);
   const meta = {
     id: uid('p'), title, category, tags, favorite: false, createdAt: Date.now(), coloredAt: 0,
     w: line.w, h: line.h, lineThumb: line.thumb, sampleThumb: null, colorThumb: null, hasSample: false,
@@ -444,7 +518,7 @@ async function onEditClick(e) {
       const f = await pickFile($('#fileLine'));
       if (!f) return;
       if (p.colorThumb && !confirm('도안을 바꾸면 색칠한 것은 지워져요. 바꿀까요?')) return;
-      const line = await processLine(f, true);
+      const line = await processLine(f, true, true, await chooseCrop(f));
       await putFile(p.id, 'line', line.blob);
       await delFile(p.id, 'paint');
       Object.assign(p, { lineThumb: line.thumb, w: line.w, h: line.h, colorThumb: null, coloredAt: 0 });

@@ -517,12 +517,14 @@ function applyView() {
   el.stage.style.transform = `translate(${view.tx}px, ${view.ty}px) scale(${view.s})`;
 }
 
+// 위쪽 버튼 줄이 그림 위에 떠 있으므로, 그 높이만큼 비우고 남은 자리에 종이를 최대한 크게 놓는다
+const TOP_BAR = 78;
 function fitView() {
   const r = el.vp.getBoundingClientRect();
-  const s = Math.min(r.width / W, r.height / H) * 0.94;
+  const s = Math.min((r.width - 16) / W, (r.height - TOP_BAR - 10) / H);
   view.fit = view.s = s;
   view.tx = (r.width - W * s) / 2;
-  view.ty = (r.height - H * s) / 2;
+  view.ty = TOP_BAR + (r.height - TOP_BAR - H * s) / 2;
   applyView();
 }
 
@@ -640,8 +642,6 @@ function bindButtons() {
   $('#btnDone').addEventListener('click', saveToGallery);
   el.undo.addEventListener('click', doUndo);
   el.redo.addEventListener('click', doRedo);
-  $('#btnFit').addEventListener('click', fitView);
-  el.sampleBtn.addEventListener('click', toggleSample);
   el.finger.addEventListener('click', () => {
     prefs.finger = fingerCanDraw() ? 'off' : 'on';
     updateFingerBtn();
@@ -657,7 +657,9 @@ function bindButtons() {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (!act) return;
     el.menu.close();
-    if (act === 'done') await saveToGallery();
+    if (act === 'sample') toggleSample();
+    else if (act === 'fit') fitView();
+    else if (act === 'done') await saveToGallery();
     else if (act === 'export') await exportImage();
     else if (act === 'clear' && confirm('색칠한 것을 전부 지울까요? (되돌리기로 살릴 수 있어요)')) clearAll();
   });

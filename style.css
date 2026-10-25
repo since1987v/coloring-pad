@@ -197,6 +197,33 @@ body.locked .admin { display: none !important; }
 
 /* ---------- 작업 화면 공통 (색칠·글자·꾸미기) ---------- */
 #editor, #trace, #makeup { background: var(--bg); }
+/* 색칠 화면: 위쪽 버튼 줄을 그림 위에 띄워 도화지를 키운다 */
+.ed-body.ed-full { padding-top: calc(14px + env(safe-area-inset-top)); }
+.float-top { position: absolute; z-index: 6; left: 12px; right: 12px; top: 12px; display: flex; align-items: center; gap: 8px; pointer-events: none; }
+.float-top > * { pointer-events: auto; }
+.float-top .spacer { pointer-events: none; }
+.float-top .chunk, .float-top .chunk-ic { height: 50px; }
+.float-top .chunk-ic { width: 50px; }
+.float-top .tape { height: 42px; font-size: 22px; }
+#editor .polaroid { top: 84px; }
+@media (max-width: 900px) {
+  .float-top .chunk:not(.tomato) { width: 50px; padding: 0; }
+  .float-top .chunk:not(.tomato) .lbl { display: none; }
+  .float-top .tape { max-width: 22vw; }
+}
+
+/* 그림 자르기 */
+.crop-wrap { position: relative; margin: 0 auto; width: max-content; max-width: 100%; touch-action: none; overflow: hidden; border: var(--line); border-radius: 12px; }
+.crop-wrap canvas { display: block; }
+.crop-box { position: absolute; border: 3px dashed #fff; outline: 3px solid var(--ink); box-shadow: 0 0 0 9999px rgba(36, 27, 58, 0.55); cursor: move; touch-action: none; }
+.crop-box i { position: absolute; width: 30px; height: 30px; border-radius: 50%; background: var(--sun); border: 3px solid var(--ink); touch-action: none; }
+.crop-box i[data-c="nw"] { left: -17px; top: -17px; }
+.crop-box i[data-c="ne"] { right: -17px; top: -17px; }
+.crop-box i[data-c="sw"] { left: -17px; bottom: -17px; }
+.crop-box i[data-c="se"] { right: -17px; bottom: -17px; }
+.gate-btn.armed { background: var(--grass); color: #fff; }
+.gate-btn.hold::before { border-radius: 24px; }
+.card.tile .hint { margin: 0; font-family: var(--font); font-size: 12px; }
 .mk-stage #mkDoodle { pointer-events: none; }
 .tb { display: flex; align-items: center; gap: 10px; padding: 18px 22px 10px; flex: none; }
 .tb .count { font-family: var(--display); font-size: 20px; color: var(--ink-2); }

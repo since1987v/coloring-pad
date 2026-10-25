@@ -83,19 +83,7 @@
 
 <!-- ===== 색칠 화면 ===== -->
 <section id="editor" class="screen">
-  <header class="tb">
-    <button id="edBack" class="chunk-ic" data-icon="back" aria-label="목록으로"></button>
-    <div class="tape"><span id="edTitle"></span></div>
-    <div class="spacer"></div>
-    <button id="btnUndo" class="chunk" data-icon="undo" disabled><span class="lbl">되돌리기</span></button>
-    <button id="btnRedo" class="chunk" data-icon="redo" disabled><span class="lbl">다시</span></button>
-    <button id="btnSample" class="chunk toggle" data-icon="image"><span class="lbl">샘플</span></button>
-    <button id="btnFinger" class="chunk-ic admin" data-icon="hand" aria-label="손가락으로 그리기"></button>
-    <button id="btnFit" class="chunk-ic" data-icon="fit" aria-label="화면에 맞추기"></button>
-    <button id="btnEdMore" class="chunk-ic" data-icon="more" aria-label="더보기"></button>
-    <button id="btnDone" class="chunk tomato" data-icon="star"><span class="lbl">다 했어요!</span></button>
-  </header>
-  <div class="ed-body">
+  <div class="ed-body ed-full">
     <aside id="tools" class="crayon-box" aria-label="도구"></aside>
     <div class="canvas-frame">
       <div id="viewport">
@@ -104,6 +92,17 @@
           <canvas id="cvStroke"></canvas>
           <img id="imgLine" alt="">
         </div>
+      </div>
+      <!-- 버튼 줄은 그림 위에 띄워서 도화지를 크게 쓴다 -->
+      <div class="float-top">
+        <button id="edBack" class="chunk-ic" data-icon="back" aria-label="목록으로"></button>
+        <div class="tape"><span id="edTitle"></span></div>
+        <div class="spacer"></div>
+        <button id="btnUndo" class="chunk" data-icon="undo" disabled><span class="lbl">되돌리기</span></button>
+        <button id="btnRedo" class="chunk-ic" data-icon="redo" aria-label="다시 하기" disabled></button>
+        <button id="btnFinger" class="chunk-ic admin" data-icon="hand" aria-label="손가락으로 그리기"></button>
+        <button id="btnEdMore" class="chunk-ic" data-icon="more" aria-label="더보기"></button>
+        <button id="btnDone" class="chunk tomato" data-icon="star"><span class="lbl">다 했어요!</span></button>
       </div>
       <div id="samplePanel" class="polaroid" hidden>
         <span class="tape-bit"></span>
@@ -253,6 +252,32 @@
 </section>
 
 <!-- ===== 대화상자 ===== -->
+<dialog id="dlgCrop" class="dlg wide">
+  <div class="dlg-body">
+    <h2>쓸 부분만 자르기</h2>
+    <p class="hint">노란 모서리를 끌면 크기가, 네모 가운데를 끌면 자리가 바뀌어요. 자른 부분이 색칠 도화지가 돼요.</p>
+    <div id="cropWrap" class="crop-wrap">
+      <canvas id="cropCanvas"></canvas>
+      <div id="cropBox" class="crop-box"><i data-c="nw"></i><i data-c="ne"></i><i data-c="sw"></i><i data-c="se"></i></div>
+    </div>
+    <div class="actions">
+      <button class="chunk" data-act="full">자르지 않고 전체 쓰기</button>
+      <button class="chunk tomato" data-act="crop">이대로 자르기</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgFaceGate" class="dlg">
+  <div class="dlg-body">
+    <h2>내 사진으로 꾸미기</h2>
+    <p class="hint">가족이나 좋아하는 사람의 얼굴 사진을 넣어 꾸밀 수 있어요. 사진은 이 iPad에만 저장돼요.<br>어른이 아래 버튼을 <b>꾹</b> 눌러 주세요.</p>
+    <div class="actions center">
+      <button class="chunk" data-act="close">닫기</button>
+      <button id="gateBtn" class="chunk tomato hold gate-btn">꾹 눌러서 사진 고르기</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="dlgFaceFit" class="dlg wide">
   <div class="dlg-body">
     <h2>눈·입 위치 맞추기</h2>
@@ -288,6 +313,7 @@
     </div>
     <label class="check"><input type="checkbox" id="addClean" checked> 선 깔끔하게 정리 (배경은 하얗게, 선은 진하게)</label>
     <label class="check"><input type="checkbox" id="addPhoto" checked> 사진이면 연한 스케치 도안으로 바꾸기 (진한 그림자를 날려요)</label>
+    <label class="check"><input type="checkbox" id="addCrop" checked> 한 장일 때 쓸 부분만 잘라서 넣기</label>
     <p id="addProgress" class="progress"></p>
     <div class="actions">
       <button type="button" id="addCancel" class="chunk">취소</button>
@@ -378,6 +404,8 @@
   <div class="dlg-body">
     <h2>더보기</h2>
     <div class="menu-list">
+      <button id="btnSample" class="chunk" data-act="sample">샘플 그림 보기 · 숨기기</button>
+      <button class="chunk" data-act="fit">그림을 화면에 맞추기 (확대 되돌리기)</button>
       <button class="chunk" data-act="done">완성! 내 작품에 걸기</button>
       <button class="chunk" data-act="export">사진으로 저장 · 공유</button>
       <button class="chunk danger" data-act="clear">전부 지우기</button>
