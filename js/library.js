@@ -264,11 +264,18 @@ function cardEl(p, i) {
   for (const ch of p.category || '') h = (h * 31 + ch.charCodeAt(0)) | 0;
   a.style.setProperty('--band', BANDS[Math.abs(h) % BANDS.length]);
   a.innerHTML = `
-    <div class="thumb"><img loading="lazy" alt="" src="${burl(thumb)}">${badge}${ribbon ? `<span class="ribbon">${ribbon}</span>` : ''}</div>
+    <div class="thumb"><img alt="" src="${burl(thumb)}">${badge}${ribbon ? `<span class="ribbon">${ribbon}</span>` : ''}</div>
     <button class="fav ${p.favorite ? 'on' : ''}" data-act="fav" aria-label="좋아요">${ICON.heart}</button>
     <div class="band"><div><div class="title"></div><div class="sub"></div></div><button class="more admin" data-act="edit" aria-label="정보 수정">${ICON.more}</button></div>`;
   a.querySelector('.title').textContent = p.title;
   a.querySelector('.sub').textContent = [p.category || '미분류', ...(p.tags || []).map((t) => '#' + t)].join('  ');
+  // 미리보기 주소가 그사이 바뀌어 못 불러오면 새 주소로 한 번 더 불러온다
+  const img = a.querySelector('img');
+  img.onerror = () => {
+    if (img.dataset.retried) return;
+    img.dataset.retried = '1';
+    img.src = URL.createObjectURL(thumb);
+  };
   return a;
 }
 
@@ -477,7 +484,7 @@ async function renderGallery() {
       const u = URL.createObjectURL(a.thumb);
       galleryUrls.push(u);
       el.style.setProperty('--band', BANDS[i % BANDS.length]);
-      el.innerHTML = `<div class="thumb"><img loading="lazy" alt="" src="${u}"></div><div class="band"><div><div class="title"></div><div class="sub">${new Date(a.createdAt).toLocaleDateString('ko-KR')}</div></div></div>`;
+      el.innerHTML = `<div class="thumb"><img alt="" src="${u}"></div><div class="band"><div><div class="title"></div><div class="sub">${new Date(a.createdAt).toLocaleDateString('ko-KR')}</div></div></div>`;
       el.querySelector('.title').textContent = a.title;
       return el;
     }),

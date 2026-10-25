@@ -119,11 +119,14 @@ body.locked .admin { display: none !important; }
 .grid {
   flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6px 6px calc(30px + env(safe-area-inset-bottom));
   display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; align-content: start;
+  /* 줄 높이를 내용만큼 고정: 없으면 스크롤 상자 높이에 맞추느라 카드 줄이 이름 띠만 남게 눌린다 */
+  grid-auto-rows: max-content;
 }
 .card { position: relative; background: #fff; border: var(--line); border-radius: 26px; box-shadow: 0 6px 0 var(--ink); overflow: hidden; cursor: pointer; text-align: left; animation: rise 0.35s both; transition: transform 0.08s; }
 .card:active { transform: translateY(3px); }
-/* 비율 상자: aspect-ratio 대신 padding으로 높이를 잡아 iPad Safari에서도 찌그러지지 않게 한다 */
-.card .thumb { position: relative; height: 0; padding-top: 105%; background: #fff; overflow: hidden; }
+/* 미리보기 높이는 px로 정한다. 비율(aspect-ratio, padding %)로 잡으면 격자 줄 높이를 계산할 때 0으로 취급돼
+   흰 도화지 칸이 없는 가운데 줄 카드가 이름 띠만 남은 얇은 줄로 찌그러진다 */
+.card .thumb { position: relative; height: 220px; background: #fff; overflow: hidden; }
 .card .thumb img { position: absolute; top: 8px; left: 8px; width: calc(100% - 16px); height: calc(100% - 16px); object-fit: contain; display: block; }
 .card .band { min-height: 58px; border-top: var(--line); background: var(--band, var(--cream)); display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 14px; }
 .card .band > div { flex: 1; min-width: 0; }
@@ -162,7 +165,7 @@ body.locked .admin { display: none !important; }
 .help td:first-child { font-weight: 900; white-space: nowrap; }
 
 /* ---------- 글자 쓰기 목록 ---------- */
-.deck-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; padding: 6px 6px 40px; overflow-y: auto; align-content: start; flex: 1; }
+.deck-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); grid-auto-rows: max-content; gap: 20px; padding: 6px 6px 40px; overflow-y: auto; align-content: start; flex: 1; }
 .deck { position: relative; text-align: left; min-height: 172px; border-radius: 28px; padding: 20px 22px 18px; background: var(--deck-bg); border: var(--line); box-shadow: 0 6px 0 var(--ink); display: flex; flex-direction: column; justify-content: space-between; animation: rise 0.35s both; }
 .deck:active { transform: translateY(3px); box-shadow: 0 3px 0 var(--ink); }
 .deck .glyphs { font-family: var(--display); font-size: 54px; color: var(--deck-ink); line-height: 1; white-space: nowrap; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; }
@@ -174,10 +177,10 @@ body.locked .admin { display: none !important; }
 .deck-head .circle svg { width: 24px; height: 24px; stroke-width: 2.6; }
 .deck-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 32px; }
 .deck-head .s { font-weight: 800; color: var(--ink-2); }
-.letter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 16px; padding: 10px 6px 40px; overflow-y: auto; align-content: start; flex: 1; }
+.letter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); grid-auto-rows: max-content; gap: 16px; padding: 10px 6px 40px; overflow-y: auto; align-content: start; flex: 1; }
 .letter-grid.words { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-.ltile { position: relative; aspect-ratio: 1; min-height: 124px; background: #fff; border: var(--line); border-radius: 24px; box-shadow: 0 5px 0 var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; animation: rise 0.3s both; }
-.words .ltile { aspect-ratio: 1.35; }
+.ltile { position: relative; height: 130px; background: #fff; border: var(--line); border-radius: 24px; box-shadow: 0 5px 0 var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; animation: rise 0.3s both; }
+.words .ltile { height: 140px; }
 .ltile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ink); }
 .ltile .g { font-family: var(--display); font-size: 58px; line-height: 1.05; }
 .ltile .g.en, .deck .glyphs.en { font-family: Andika, var(--display); font-weight: 700; }
@@ -340,7 +343,7 @@ input[type="range"]::-moz-range-thumb { width: 28px; height: 28px; border-radius
 .mk-acc-tools { display: flex; gap: 8px; flex: none; padding-left: 12px; border-left: 3px solid var(--ink); }
 .mk-acc-tools .chunk-ic { width: 48px; height: 48px; border-radius: 15px; box-shadow: 0 4px 0 var(--ink); }
 .mk-items:not([hidden]) ~ .jelly-row { flex: 0 1 auto; max-width: 34%; }
-.faces .thumb { padding-top: 125%; }
+.faces .thumb { height: 270px; }
 .faces .thumb img { top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
 .reset-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; margin-bottom: 14px; }
 .looks { display: flex; flex-direction: column; gap: 10px; }
@@ -378,6 +381,8 @@ input[type="range"]::-moz-range-thumb { width: 28px; height: 28px; border-radius
   .lib-tools { flex-wrap: wrap; }
   .chips { flex-basis: 100%; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  .card .thumb { height: 180px; }
+  .faces .thumb { height: 220px; }
   .tb { gap: 8px; padding: 14px 14px 8px; }
   .tb .chunk:not(.tomato) .lbl { display: none; }
   .tb .chunk:not(.tomato) { width: 54px; padding: 0; }
