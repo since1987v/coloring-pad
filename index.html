@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="색칠놀이">
+  <meta name="theme-color" content="#FFF1D0">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gothic+A1:wght@500;700;800;900&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <title>색칠놀이</title>
+</head>
+<body>
+
+<!-- ===== 처음 화면 ===== -->
+<section id="library" class="screen active">
+  <div class="lib">
+    <nav class="side" aria-label="메뉴">
+      <div class="brand"><span id="brandMark" class="brand-mark"></span><span class="brand-name">색칠놀이</span></div>
+      <button class="mode-btn tomato" data-mode="color">
+        <span class="mb-ic"><svg viewBox="0 0 28 100" aria-hidden="true" style="width:24px;height:56px;transform:rotate(30deg)"><rect x="4" y="30" width="20" height="68" rx="3" fill="#FF5A3C" stroke="#241B3A" stroke-width="3"/><rect x="5.5" y="48" width="17" height="26" fill="#FFF1D0"/><path d="M5 30 L13 6 Q14 3 15 6 L23 30Z" fill="#C7361D" stroke="#241B3A" stroke-width="3" stroke-linejoin="round"/></svg></span>
+        <span class="mb-text"><b>색칠하기</b><small id="subColor">그림</small></span>
+        <span id="newBadge" class="sticker sun" hidden></span>
+      </button>
+      <button class="mode-btn sky" data-mode="letters">
+        <span class="mb-ic glyph">가A</span>
+        <span class="mb-text"><b>글자 쓰기</b><small id="subLetters">듣고 따라 써요</small></span>
+      </button>
+      <button class="mode-btn pink" data-mode="makeup">
+        <span class="mb-ic"><svg viewBox="0 0 40 40" aria-hidden="true" style="width:42px;height:42px"><path d="M8 18 L6 6 L14 12 L20 4 L26 12 L34 6 L32 18Z" fill="#FFC12E" stroke="#241B3A" stroke-width="2.5" stroke-linejoin="round"/><circle cx="20" cy="27" r="9" fill="#FFD9C7" stroke="#241B3A" stroke-width="2.5"/><path d="M16 29 Q20 33 24 29" stroke="#FF5A3C" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg></span>
+        <span class="mb-text"><b>꾸미기</b><small>화장 · 왕관 · 안경</small></span>
+      </button>
+      <button class="mode-btn grass" data-mode="gallery">
+        <span class="mb-ic"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:38px;height:38px"><path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z" fill="#FFC12E" stroke="#241B3A" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+        <span class="mb-text"><b>내 작품</b><small id="subGallery">전시회</small></span>
+      </button>
+      <div class="side-foot">
+        <button id="btnFull" class="chunk-ic" data-icon="expand" aria-label="전체화면"></button>
+        <button id="btnSettings" class="chunk-ic hold" data-icon="settings" aria-label="설정"></button>
+      </div>
+    </nav>
+
+    <main class="lib-main">
+      <header class="lib-head">
+        <h1 id="secTitle"></h1>
+        <label id="searchBox" class="search-box"><span data-icon="search"></span><input id="search" type="search" placeholder="그림 찾기" autocomplete="off"></label>
+        <button id="btnAdd" class="chunk sun admin" data-icon="plus"><span class="lbl">그림 넣기</span></button>
+      </header>
+      <div id="colorTools" class="lib-tools">
+        <nav id="chips" class="chips"></nav>
+        <div class="pill-toggle" id="viewSeg">
+          <button data-view="line">도안</button>
+          <button data-view="sample">샘플</button>
+          <button data-view="color">내 색칠</button>
+        </div>
+        <select id="sort" class="sel" aria-label="정렬">
+          <option value="new">최근 넣은 순</option>
+          <option value="old">오래된 순</option>
+          <option value="name">이름순</option>
+          <option value="colored">최근 칠한 순</option>
+          <option value="fav">좋아요 먼저</option>
+        </select>
+      </div>
+      <div id="paneColor" class="sub">
+        <div id="grid" class="grid"></div>
+        <div id="empty" class="empty" hidden></div>
+      </div>
+      <div id="paneLetters" class="sub" hidden></div>
+      <div id="paneMakeup" class="sub" hidden></div>
+      <div id="paneGallery" class="sub" hidden>
+        <div id="galleryGrid" class="grid"></div>
+        <div id="galleryEmpty" class="empty" hidden></div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ===== 색칠 화면 ===== -->
+<section id="editor" class="screen">
+  <header class="tb">
+    <button id="edBack" class="chunk-ic" data-icon="back" aria-label="목록으로"></button>
+    <div class="tape"><span id="edTitle"></span></div>
+    <div class="spacer"></div>
+    <button id="btnUndo" class="chunk" data-icon="undo" disabled><span class="lbl">되돌리기</span></button>
+    <button id="btnRedo" class="chunk" data-icon="redo" disabled><span class="lbl">다시</span></button>
+    <button id="btnSample" class="chunk toggle" data-icon="image"><span class="lbl">샘플</span></button>
+    <button id="btnFinger" class="chunk-ic admin" data-icon="hand" aria-label="손가락으로 그리기"></button>
+    <button id="btnFit" class="chunk-ic" data-icon="fit" aria-label="화면에 맞추기"></button>
+    <button id="btnEdMore" class="chunk-ic" data-icon="more" aria-label="더보기"></button>
+    <button id="btnDone" class="chunk tomato" data-icon="star"><span class="lbl">다 했어요!</span></button>
+  </header>
+  <div class="ed-body">
+    <aside id="tools" class="crayon-box" aria-label="도구"></aside>
+    <div class="canvas-frame">
+      <div id="viewport">
+        <div id="stage">
+          <canvas id="cvPaint"></canvas>
+          <canvas id="cvStroke"></canvas>
+          <img id="imgLine" alt="">
+        </div>
+      </div>
+      <div id="samplePanel" class="polaroid" hidden>
+        <span class="tape-bit"></span>
+        <div class="sp-img"><img id="spImg" alt="샘플"></div>
+        <div class="sp-bar">
+          <span>눌러서 색 고르기</span>
+          <button id="spSide" data-icon="swap" aria-label="왼쪽/오른쪽"></button>
+          <button id="spBig" data-icon="zoom" aria-label="크게/작게"></button>
+          <button id="spClose" data-icon="close" aria-label="닫기"></button>
+        </div>
+      </div>
+      <div id="edLoading" class="loading" hidden><span class="spinner"></span></div>
+    </div>
+  </div>
+  <footer class="bar">
+    <div id="sizes" class="sizes" aria-label="굵기"></div>
+    <div id="quickColors" class="jelly-row" aria-label="색"></div>
+    <button id="btnPalette" class="chunk grape"><i id="curColor" class="cur-dot"></i><span class="lbl">색 더 보기</span></button>
+  </footer>
+</section>
+
+<!-- ===== 글자 따라쓰기 ===== -->
+<section id="trace" class="screen">
+  <header class="tb">
+    <button id="trBack" class="chunk-ic" data-icon="back" aria-label="목록으로"></button>
+    <div class="tape sky"><span id="trTitle"></span></div>
+    <span id="trCount" class="count"></span>
+    <div class="spacer"></div>
+    <div id="trStars" class="stars"></div>
+    <button id="trUndo" class="chunk" data-icon="undo"><span class="lbl">한 획 지우기</span></button>
+    <button id="trClear" class="chunk-ic" data-icon="trash" aria-label="다 지우기"></button>
+  </header>
+  <div class="tr-body">
+    <div class="tr-hint">
+      <button id="trSpeak" class="speak-big" data-icon="speaker" aria-label="읽어 주기"></button>
+      <div class="tr-hint-text">
+        <div id="trGlyphName" class="tr-name"></div>
+        <button id="trExample" class="tr-example"><span id="trEmoji" class="tr-emoji"></span><span id="trWord" class="tr-word"></span></button>
+      </div>
+    </div>
+    <div class="tr-stage" id="trStage">
+      <button id="trPrev" class="chunk-ic big nav-arrow prev" data-icon="back" aria-label="이전"></button>
+      <div id="trPaper" class="tr-paper">
+        <canvas id="trGuide"></canvas>
+        <canvas id="trInk"></canvas>
+        <canvas id="trStroke"></canvas>
+      </div>
+      <button id="trNext" class="chunk-ic big nav-arrow next" data-icon="next" aria-label="다음"></button>
+    </div>
+  </div>
+  <footer class="bar">
+    <div id="trTools" class="tray"></div>
+    <div id="trColors" class="jelly-row"></div>
+    <button id="trDone" class="chunk tomato big" data-icon="check"><span class="lbl">다 썼어요</span></button>
+  </footer>
+  <div id="trResult" class="result" hidden>
+    <div class="result-card">
+      <div id="resStars" class="result-stars"></div>
+      <div id="resMsg" class="result-msg"></div>
+      <div class="actions center">
+        <button id="resAgain" class="chunk">다시 쓰기</button>
+        <button id="resNext" class="chunk tomato">다음 글자</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 꾸미기 (화장 · 액세서리) ===== -->
+<section id="makeup" class="screen">
+  <header class="tb">
+    <button id="mkBack" class="chunk-ic" data-icon="back" aria-label="목록으로"></button>
+    <div class="tape pink"><span id="mkTitle"></span></div>
+    <div id="mkSeg" class="seg">
+      <button data-seg="makeup">화장하기</button>
+      <button data-seg="acc">액세서리</button>
+    </div>
+    <div class="spacer"></div>
+    <button id="mkUndo" class="chunk" data-icon="undo" disabled><span class="lbl">되돌리기</span></button>
+    <button id="mkRedo" class="chunk-ic" data-icon="redo" aria-label="다시 하기" disabled></button>
+    <button id="mkMore" class="chunk-ic" data-icon="more" aria-label="더보기"></button>
+    <button id="mkDone" class="chunk tomato" data-icon="star"><span class="lbl">다 했어요!</span></button>
+  </header>
+  <div class="ed-body">
+    <aside id="mkRail" class="mk-rail"></aside>
+    <div id="mkWrap" class="canvas-frame mk-wrap">
+      <div id="mkStage" class="mk-stage">
+        <canvas id="mkBase"></canvas>
+        <div id="mkLayers"></div>
+        <canvas id="mkScratch"></canvas>
+        <canvas id="mkShade" class="shade"></canvas>
+        <canvas id="mkShine"></canvas>
+        <canvas id="mkFeat"></canvas>
+        <div id="mkAcc" class="mk-acc"></div>
+      </div>
+      <canvas id="mkLoupe" class="loupe" width="180" height="180" hidden></canvas>
+    </div>
+  </div>
+  <footer class="bar mk-bar">
+    <button id="mkMirror" class="chunk toggle" data-icon="mirror"><span class="lbl">좌우 같이</span></button>
+    <div id="mkSizes" class="sizes"></div>
+    <div id="mkItems" class="mk-items" hidden></div>
+    <div id="mkAccTools" class="mk-acc-tools" hidden>
+      <button class="chunk-ic" data-act="flip" data-icon="swap" aria-label="좌우 뒤집기"></button>
+      <button class="chunk-ic" data-act="front" data-icon="share" aria-label="맨 앞으로"></button>
+      <button class="chunk-ic" data-act="del" data-icon="trash" aria-label="빼기"></button>
+    </div>
+    <div id="mkShades" class="jelly-row"></div>
+    <button id="mkLooks" class="chunk grape" data-icon="sparkle"><span class="lbl">추천 색</span></button>
+  </footer>
+  <div id="mkGhost" class="ghost" hidden></div>
+  <div id="mkFinish" class="finish" hidden>
+    <div class="finish-card">
+      <div id="finTitle" class="finish-title"></div>
+      <div class="finish-main">
+        <div class="finish-preview"><canvas id="finCanvas"></canvas></div>
+        <div class="finish-opts">
+          <div class="opt-label">배경</div>
+          <div id="finBg" class="opt-row"></div>
+          <div class="opt-label">액자</div>
+          <div id="finFrame" class="opt-row"></div>
+          <div class="finish-actions">
+            <button id="finSave" class="chunk tomato" data-icon="star"><span class="lbl">내 작품에 걸기</span></button>
+            <button id="finShare" class="chunk" data-icon="share"><span class="lbl">사진에 저장</span></button>
+            <button id="finBack" class="chunk" data-icon="back"><span class="lbl">더 꾸미기</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 대화상자 ===== -->
+<dialog id="dlgAdd" class="dlg">
+  <form id="formAdd" class="dlg-body" onsubmit="return false">
+    <h2>그림 넣기</h2>
+    <label class="field"><span>도안 (선 그림) · 여러 장 한꺼번에 가능</span><input type="file" id="addLine" accept="image/*" multiple></label>
+    <label class="field"><span>샘플 (색칠된 그림) · 선택</span><input type="file" id="addSample" accept="image/*" multiple></label>
+    <p class="hint">여러 장을 올릴 땐 샘플 파일 이름을 <b>도안이름_sample</b>로 맞추면 자동으로 짝지어져요.</p>
+    <label class="field"><span>이름 (1장일 때만 · 비우면 파일 이름)</span><input id="addTitle" placeholder="예: 우주 고양이"></label>
+    <div class="field-row">
+      <label class="field"><span>카테고리</span><input id="addCat" list="catList" placeholder="예: 동물"></label>
+      <label class="field"><span>태그 (쉼표로 구분)</span><input id="addTags" placeholder="예: 고양이, 쉬움"></label>
+    </div>
+    <label class="check"><input type="checkbox" id="addClean" checked> 선 깔끔하게 정리 (배경은 하얗게, 선은 진하게)</label>
+    <p id="addProgress" class="progress"></p>
+    <div class="actions">
+      <button type="button" id="addCancel" class="chunk">취소</button>
+      <button type="button" id="addGo" class="chunk tomato">넣기</button>
+    </div>
+  </form>
+</dialog>
+<datalist id="catList"></datalist>
+
+<dialog id="dlgEdit" class="dlg">
+  <div class="dlg-body">
+    <h2>그림 정보</h2>
+    <div class="edit-preview">
+      <figure><img id="editLineImg" alt=""><figcaption>도안</figcaption></figure>
+      <figure id="editSampleBox"><img id="editSampleImg" alt=""><figcaption>샘플</figcaption></figure>
+    </div>
+    <label class="field"><span>이름</span><input id="editTitle"></label>
+    <div class="field-row">
+      <label class="field"><span>카테고리</span><input id="editCat" list="catList" placeholder="비우면 미분류"></label>
+      <label class="field"><span>태그 (쉼표로 구분)</span><input id="editTags"></label>
+    </div>
+    <label class="check"><input type="checkbox" id="editFav"> 좋아요 표시</label>
+    <div class="row-btns">
+      <button class="chunk small" data-act="replaceLine">도안 바꾸기</button>
+      <button class="chunk small" data-act="setSample">샘플 넣기·바꾸기</button>
+      <button class="chunk small" data-act="removeSample">샘플 빼기</button>
+      <button class="chunk small" data-act="resetColor">색칠 지우기</button>
+      <button class="chunk small danger" data-act="delete">그림 삭제</button>
+    </div>
+    <div class="actions">
+      <button class="chunk" data-act="close">닫기</button>
+      <button class="chunk tomato" data-act="save">저장</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgSettings" class="dlg">
+  <div class="dlg-body">
+    <h2>설정</h2>
+    <div class="set-row">
+      <div><b>아이 잠금</b><small>넣기·수정·삭제 버튼을 숨기고, 설정은 꾹 눌러야 열려요</small></div>
+      <label class="switch"><input type="checkbox" id="setLock"><span></span></label>
+    </div>
+    <div class="set-row">
+      <div><b>소리 (읽어주기·칭찬)</b><small>끄면 소리 없이 써요</small></div>
+      <label class="switch"><input type="checkbox" id="setSound"><span></span></label>
+    </div>
+    <div class="set-row">
+      <div><b>읽어주기 속도</b><small id="rateLabel"></small></div>
+      <input type="range" id="setRate" min="60" max="130" step="5">
+    </div>
+    <div class="set-row">
+      <div><b>꾸미기 자유 모드</b><small>끄면 화장이 알맞은 자리에만 묻도록 도와줘요</small></div>
+      <label class="switch"><input type="checkbox" id="setFreeMakeup"><span></span></label>
+    </div>
+    <div class="menu-list">
+      <button class="chunk" data-act="help">사용법 · ChatGPT로 도안 만들기</button>
+      <button class="chunk" data-act="renameCat">지금 고른 카테고리 이름 바꾸기</button>
+      <button class="chunk" data-act="backup">백업 파일 만들기</button>
+      <button class="chunk" data-act="restore">백업 불러오기</button>
+      <button class="chunk" data-act="storage">저장 공간 보기</button>
+    </div>
+    <p class="hint">아이가 앱 밖으로 못 나가게 하려면: iPad <b>설정 → 손쉬운 사용 → 사용법 유도 접근</b>을 켠 뒤, 이 앱에서 <b>상단 버튼을 세 번</b> 누르세요.</p>
+    <div class="actions"><button class="chunk tomato" data-act="close">닫기</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgHelp" class="dlg wide">
+  <div class="dlg-body">
+    <div id="helpBody"></div>
+    <div class="actions"><button class="chunk tomato" data-act="close">알겠어요</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgEdMenu" class="dlg">
+  <div class="dlg-body">
+    <h2>더보기</h2>
+    <div class="menu-list">
+      <button class="chunk" data-act="done">완성! 내 작품에 걸기</button>
+      <button class="chunk" data-act="export">사진으로 저장 · 공유</button>
+      <button class="chunk danger" data-act="clear">전부 지우기</button>
+    </div>
+    <div class="actions"><button class="chunk tomato" data-act="close">닫기</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgMkMenu" class="dlg">
+  <div class="dlg-body">
+    <h2>지우고 싶은 곳</h2>
+    <div class="reset-grid">
+      <button class="chunk" data-act="eyes">눈 화장</button>
+      <button class="chunk" data-act="lips">입술</button>
+      <button class="chunk" data-act="cheeks">볼</button>
+      <button class="chunk" data-act="paint">얼굴 그림·반짝이</button>
+      <button class="chunk" data-act="unacc">액세서리</button>
+    </div>
+    <div class="menu-list">
+      <button class="chunk" data-act="export">사진으로 저장 · 공유</button>
+      <button class="chunk danger" data-act="wipe">화장 모두 지우기</button>
+    </div>
+    <div class="actions"><button class="chunk tomato" data-act="close">닫기</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgLooks" class="dlg">
+  <div class="dlg-body">
+    <h2>추천 색 조합</h2>
+    <p class="hint">고르면 립·블러셔·아이섀도 색이 맞춰져요. 칠하는 건 직접 해요!</p>
+    <div id="looksList" class="looks"></div>
+    <div class="actions"><button class="chunk" data-act="close">닫기</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgPalette" class="dlg sheet">
+  <div class="dlg-body">
+    <div id="paletteAll" class="palette-all"></div>
+    <div class="sheet-row">
+      <span class="lbl">최근</span>
+      <div id="recent" class="recent"></div>
+      <label class="custom-color" aria-label="색 직접 고르기"><input type="color" id="customColor"><span data-icon="plus"></span></label>
+    </div>
+    <div class="sheet-row" id="sizeRow"><span class="lbl">굵기</span><input type="range" id="sizeRange"></div>
+    <div class="sheet-row"><span class="lbl">진하기</span><input type="range" id="opacityRange" min="10" max="100"></div>
+  </div>
+</dialog>
+
+<dialog id="dlgArt" class="dlg wide">
+  <div class="dlg-body">
+    <h2 id="artTitle"></h2>
+    <img id="artImg" class="art-img" alt="">
+    <div class="actions">
+      <button class="chunk danger admin" data-act="delete">삭제</button>
+      <button class="chunk" data-act="again">다시 색칠</button>
+      <button class="chunk" data-act="share">사진에 저장</button>
+      <button class="chunk tomato" data-act="close">닫기</button>
+    </div>
+  </div>
+</dialog>
+
+<input type="file" id="fileLine" accept="image/*" hidden>
+<input type="file" id="fileSample" accept="image/*" hidden>
+<input type="file" id="fileRestore" hidden>
+<div id="toast" role="status"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
