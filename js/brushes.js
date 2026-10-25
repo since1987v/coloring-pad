@@ -3,9 +3,9 @@ import { makeCanvas, hexToRgb, lighten } from './util.js';
 // size·opacity는 기본값, min·max는 굵기 슬라이더 범위(캔버스 픽셀 기준, 도안 긴 변 2048)
 // layered: 한 획을 따로 그린 뒤 마지막에 한 번에 합쳐서 획 안에서 겹친 곳이 진해지지 않게 한다
 export const TOOLS = [
+  { id: 'marker', name: '마커', icon: '🖊️', min: 4, max: 90, size: 20, opacity: 0.7, layered: true },
   { id: 'crayon', name: '크레파스', icon: '🖍️', min: 4, max: 90, size: 26, opacity: 1 },
   { id: 'pencil', name: '색연필', icon: '✏️', min: 2, max: 40, size: 9, opacity: 0.9 },
-  { id: 'marker', name: '마커', icon: '🖊️', min: 4, max: 90, size: 20, opacity: 0.7, layered: true },
   { id: 'paint', name: '물감붓', icon: '🖌️', min: 4, max: 140, size: 34, opacity: 0.85, layered: true },
   { id: 'airbrush', name: '스프레이', icon: '💨', min: 10, max: 200, size: 60, opacity: 0.6 },
   { id: 'glitter', name: '반짝이', icon: '✨', min: 8, max: 120, size: 34, opacity: 1 },

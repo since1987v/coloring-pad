@@ -5,13 +5,14 @@ import { initEditor, openEditor } from './editor.js';
 import { initLibrary, refreshLibrary, adminAction } from './library.js';
 import { initTrace } from './trace.js';
 import { initMakeup, setFreeMode } from './makeup.js';
-import { setRate, setMuted } from './speech.js';
+import { setRate, setMuted, setVoice, voicesFor, speak } from './speech.js';
 
 // 홈 화면 앱으로 실행하면 이미 전체화면이라 전체화면 버튼을 숨긴다
 const root = document.documentElement;
 const canFs = !!(root.requestFullscreen || root.webkitRequestFullscreen);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let fillVoices = async () => {}; // 설정 창의 목소리 목록 채우기 (initSettings에서 정함)
 
 applyIcons();
 $('#brandMark').innerHTML = LOGO;
@@ -55,6 +56,28 @@ async function initSettings() {
     setMuted(!sound.checked);
     setSetting('sound', sound.checked);
   });
+  // 목소리: 저장된 선택을 적용하고, 설정 창을 열 때마다 iPad에 있는 목소리 목록을 새로 채운다
+  const VOICE_TEST = { ko: '안녕하세요! 기역, 기차. 참 잘했어요!', en: 'Hello! A. Apple. Great job!' };
+  for (const lang of ['ko', 'en']) {
+    const key = lang === 'ko' ? 'voiceKo' : 'voiceEn';
+    const sel = $(lang === 'ko' ? '#setVoiceKo' : '#setVoiceEn');
+    setVoice(lang, await getSetting(key, ''));
+    sel.addEventListener('change', () => {
+      setVoice(lang, sel.value);
+      setSetting(key, sel.value);
+      speak(VOICE_TEST[lang], lang);
+    });
+    $(lang === 'ko' ? '#testVoiceKo' : '#testVoiceEn').addEventListener('click', () => speak(VOICE_TEST[lang], lang));
+  }
+  fillVoices = async () => {
+    for (const lang of ['ko', 'en']) {
+      const sel = $(lang === 'ko' ? '#setVoiceKo' : '#setVoiceEn');
+      const cur = await getSetting(lang === 'ko' ? 'voiceKo' : 'voiceEn', '');
+      const list = voicesFor(lang);
+      sel.replaceChildren(new Option('자동 (가장 좋은 목소리)', ''), ...list.map((v) => new Option(`${v.name}${lang === 'en' ? ` · ${v.lang}` : ''}`, v.name)));
+      sel.value = list.some((v) => v.name === cur) ? cur : '';
+    }
+  };
   const free = $('#setFreeMakeup');
   free.checked = await getSetting('freeMakeup', false);
   setFreeMode(free.checked);
@@ -86,7 +109,7 @@ async function initSettings() {
     btn.classList.add('holding');
     timer = setTimeout(() => {
       cancel();
-      dlg.showModal();
+      openSettings();
     }, 1200);
   });
   btn.addEventListener('pointerup', cancel);
@@ -94,8 +117,12 @@ async function initSettings() {
   btn.addEventListener('pointercancel', cancel);
   btn.addEventListener('click', () => {
     if (document.body.classList.contains('locked')) toast('어른은 설정 버튼을 꾹 눌러 주세요');
-    else dlg.showModal();
+    else openSettings();
   });
+  const openSettings = async () => {
+    await fillVoices();
+    dlg.showModal();
+  };
 }
 
 // ---------- 전체화면 ----------

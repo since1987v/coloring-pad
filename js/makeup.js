@@ -865,9 +865,11 @@ function showLoupe(e) {
 function addAcc(key, at) {
   const d = ACC_MAP[key];
   snapshotAcc();
+  // 같은 것을 여러 번 누르면 겹치지 않게 조금씩 비켜서 놓는다
+  const same = accs.filter((a) => a.key === key).length;
   const jitter = d.emoji && !at ? (Math.random() - 0.5) * 160 : 0;
-  const x = at ? at.x : d.at[0] + jitter;
-  const y = at ? at.y : d.at[1] + jitter * 0.6;
+  const x = at ? at.x : d.at[0] + jitter + same * 46;
+  const y = at ? at.y : d.at[1] + jitter * 0.6 + same * 34;
   accs.push({ key, x, y, w: d.at[2], rot: d.rot || 0, c: d.c || null, flip: false });
   sel = accs.length - 1;
   renderAcc();
@@ -875,29 +877,37 @@ function addAcc(key, at) {
   markAcc();
 }
 
-// 목록에서 끌어서 붙이기: 끄는 동안 그림이 손가락을 따라오고, 원래 자리 가까이 가면 붙일 곳을 안내한다
+// 목록에서 끌어서 붙이기: 끄는 동안 그림이 손가락을 따라오고, 원래 자리 바로 가까이 가면 붙일 곳을 안내한다.
+// 옆으로 밀면 목록이 넘어가고, 위로 끌면 붙이기가 된다 (브라우저 스크롤에 맡기면 끌기가 중간에 끊겨서 직접 처리한다)
 function bindItems() {
   el.items.addEventListener('pointerdown', (e) => {
     const b = e.target.closest('[data-key]');
-    if (!b) return;
-    drag = { key: b.dataset.key, id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false, snap: null };
+    drag = { key: b?.dataset.key, id: e.pointerId, x0: e.clientX, y0: e.clientY, mode: null, snap: null, scroll0: el.items.scrollLeft };
     try {
-      b.setPointerCapture(e.pointerId);
+      el.items.setPointerCapture(e.pointerId);
     } catch {}
   });
   el.items.addEventListener('pointermove', (e) => {
     if (!drag || e.pointerId !== drag.id) return;
-    if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 12) return;
-    const d = ACC_MAP[drag.key];
-    if (!drag.moved) {
-      drag.moved = true;
-      el.ghost.innerHTML = accThumb(d);
-      el.ghost.hidden = false;
+    const dx = e.clientX - drag.x0;
+    const dy = e.clientY - drag.y0;
+    if (!drag.mode) {
+      if (Math.hypot(dx, dy) < 10) return;
+      drag.mode = drag.key && Math.abs(dy) > Math.abs(dx) ? 'drag' : 'scroll';
+      if (drag.mode === 'drag') {
+        el.ghost.innerHTML = accThumb(ACC_MAP[drag.key]);
+        el.ghost.hidden = false;
+      }
     }
+    if (drag.mode === 'scroll') {
+      el.items.scrollLeft = drag.scroll0 - dx;
+      return;
+    }
+    const d = ACC_MAP[drag.key];
     el.ghost.style.left = e.clientX + 'px';
     el.ghost.style.top = e.clientY + 'px';
     const p = toStage(e);
-    const near = Math.hypot(p.x - d.at[0], p.y - d.at[1]) < U * 0.2;
+    const near = Math.hypot(p.x - d.at[0], p.y - d.at[1]) < U * 0.08;
     drag.snap = near ? { x: d.at[0], y: d.at[1] } : null;
     drag.inside = p.x > 0 && p.y > 0 && p.x < FW && p.y < FH;
     drag.p = p;
@@ -908,12 +918,14 @@ function bindItems() {
     const g = drag;
     drag = null;
     el.ghost.hidden = true;
+    if (g.mode === 'scroll') return;
     if (cancelled) {
       renderAcc();
       return;
     }
-    if (!g.moved) addAcc(g.key);
-    else if (g.inside) addAcc(g.key, g.snap || g.p);
+    if (!g.mode) {
+      if (g.key) addAcc(g.key);
+    } else if (g.inside) addAcc(g.key, g.snap || g.p);
     else renderAcc();
   };
   el.items.addEventListener('pointerup', (e) => end(e, false));
@@ -923,6 +935,15 @@ function bindItems() {
 const ang = (dx, dy) => (Math.atan2(dy, dx) * 180) / Math.PI;
 
 function accDown(e) {
+  // 화면 밖에서 손을 뗀 손가락이 남아 있으면 다음 터치가 '두 번째 손가락'으로 잘못 읽혀 아무것도 안 된다.
+  // 첫 손가락이 닿을 때마다 새로 시작하고, 손을 어디서 떼도 알 수 있게 포인터를 붙잡아 둔다
+  if (e.isPrimary) {
+    pointers.clear();
+    gest = null;
+  }
+  try {
+    el.wrap.setPointerCapture(e.pointerId);
+  } catch {}
   pointers.set(e.pointerId, toStage(e));
   if (pointers.size === 2 && sel != null) {
     const [p, q] = [...pointers.values()];

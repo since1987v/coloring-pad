@@ -97,7 +97,7 @@ function renderDeck(d) {
     .map(
       (it, i) => `<button class="ltile" data-i="${i}" style="animation-delay:${Math.min(i, 20) * 15}ms">
         ${d.word && it.em ? `<span class="em">${it.em}</span>` : ''}
-        <span class="g" style="color:${d.ink}"></span>
+        <span class="g ${(it.lang || d.lang) === 'en' ? 'en' : ''}" style="color:${d.ink}"></span>
         ${it.name && !d.word ? `<span class="n"></span>` : ''}
         <span class="st">${starRow(starsOf(keyOf(d, it)))}</span>
         ${d.custom ? `<span class="x admin" data-del="${i}" role="button" aria-label="지우기">${ICON.close}</span>` : ''}
@@ -136,10 +136,10 @@ function renderDeck(d) {
       return;
     }
     if (e.target.closest('[data-add]')) {
-      const t = prompt('따라 쓸 낱말을 넣어 주세요 (한글 또는 영어, 8글자까지)')?.trim();
+      const t = prompt('따라 쓸 낱말을 넣어 주세요 (한글 또는 영어, 16글자까지 · 길면 여러 줄로 나눠져요)')?.trim();
       if (!t) return;
-      if ([...t].length > 8) {
-        toast('8글자까지 넣을 수 있어요');
+      if ([...t].length > 16) {
+        toast('16글자까지 넣을 수 있어요');
         return;
       }
       customWords.push(t);
