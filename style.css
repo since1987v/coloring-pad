@@ -406,8 +406,9 @@ input[type="range"]::-moz-range-thumb { width: 28px; height: 28px; border-radius
 .fit-main { display: flex; gap: 18px; align-items: flex-start; }
 .fit-wrap { position: relative; width: min(380px, 60vw); flex: none; border: var(--line); border-radius: 12px; overflow: hidden; touch-action: none; }
 .fit-wrap canvas { display: block; width: 100%; height: auto; }
-.fit-mark { position: absolute; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; background: var(--m); border: 3px solid #fff; box-shadow: 0 0 0 3px var(--ink), 0 4px 0 3px var(--ink); touch-action: none; cursor: grab; }
-.fit-mark::after { content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--ink); }
+/* 가운데가 비치는 고리: 점 아래의 눈·입이 보여야 크기를 맞출 수 있다 */
+.fit-mark { position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: transparent; border: 5px solid var(--m); box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 2px var(--ink); touch-action: none; cursor: grab; }
+.fit-mark::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: var(--m); box-shadow: 0 0 0 1px var(--ink); }
 .fit-side { flex: 1; min-width: 160px; }
 
 /* ---------- 좁은 화면 (iPad 세로) ---------- */

@@ -170,8 +170,38 @@ function cut(x, fn) {
   x.restore();
 }
 
+// 사진 얼굴은 그림 얼굴보다 눈이 훨씬 작고 납작하다. 그림 눈 모양을 그대로 쓰면 보호 영역이 진짜 눈두덩까지 덮어서
+// 아이섀도·아이라인이 거의 안 칠해진다. 그래서 사진 얼굴은 눈 크기(eyeW: 두 눈 사이 거리 대비)로 아몬드 모양 눈을 따로 만든다
+export const EYE_W = 0.46;
+let eg = null; // 사진 얼굴의 눈 { hw: 반너비, hh: 반높이, k: 그림 눈 대비 배율 } — 그림 얼굴이면 null
+const eyeGeom = (w) => {
+  const hw = (w || EYE_W) * ((EYES_AT[1][0] - EYES_AT[0][0]) / 2);
+  return { hw, hh: hw * 0.38, k: hw / 78 };
+};
+function eyeOutline(cx, cy, grow = 0, g = eg) {
+  if (!g) return eyePath(cx, cy, grow);
+  const d = grow * g.k;
+  const w = g.hw + d;
+  const h = Math.max(2, g.hh + d * 0.7);
+  const p = new Path2D();
+  p.moveTo(cx - w, cy);
+  p.bezierCurveTo(cx - w * 0.5, cy - h * 1.35, cx + w * 0.5, cy - h * 1.35, cx + w, cy);
+  p.bezierCurveTo(cx + w * 0.5, cy + h * 1.15, cx - w * 0.5, cy + h * 1.15, cx - w, cy);
+  return p;
+}
+// 눈두덩(섀도) 자리: [가운데 x, y, 가로 반지름, 세로 반지름] — core 진한 곳, bleed 옅게 번지는 곳, area 눈 둘레 전체
+function lidSpots(kind) {
+  if (!eg) {
+    const [dy, rx, ry] = { core: [0, 112, 64], bleed: [-6, 150, 98], area: [10, 165, 115] }[kind];
+    return LIDS_AT.map(([x, y]) => [x, y + dy, rx, ry]);
+  }
+  const { hw, hh } = eg;
+  const [dy, rx, ry] = { core: [-hh * 1.3, hw * 1.3, hh * 1.55], bleed: [-hh * 1.6, hw * 1.7, hh * 2.4], area: [-hh * 0.5, hw * 1.9, hh * 3.2] }[kind];
+  return EYES_AT.map(([x, y]) => [x, y + dy, rx, ry]);
+}
+const lidsFill = (kind) => (y) => lidSpots(kind).forEach(([x, cy, rx, ry]) => fillEllipse(y, x, cy, rx, ry));
 const eyesShape = (grow) => (y) => {
-  for (const [ex, ey] of EYES_AT) y.fill(eyePath(ex, ey, grow));
+  for (const [ex, ey] of EYES_AT) y.fill(eyeOutline(ex, ey, grow));
 };
 const lipsShape = (y) => LIP_PATHS().forEach((p) => y.fill(p));
 const lipsWide = (w) => (y) => {
@@ -203,8 +233,8 @@ function buildMasks(key) {
       softFill(x, lipsShape, u * 0.006, 1);
     }),
     lids: mk((x) => {
-      softFill(x, (y) => LIDS_AT.forEach(([lx, ly]) => fillEllipse(y, lx, ly - 6, 150, 98)), u * 0.08, 0.42);
-      softFill(x, (y) => LIDS_AT.forEach(([lx, ly]) => fillEllipse(y, lx, ly, 112, 64)), u * 0.05, 1);
+      softFill(x, lidsFill('bleed'), u * 0.08, 0.42);
+      softFill(x, lidsFill('core'), u * 0.05, 1);
       cut(x, (y) => softFill(y, eyesShape(0), u * 0.005, 1));
     }),
     liner: mk((x) => {
@@ -241,7 +271,7 @@ function buildMasks(key) {
       }, u * 0.012, 1);
     }),
     lipsCore: mk((x) => softFill(x, lipsWide(U * 0.06), u * 0.03, 1)),
-    eyeArea: mk((x) => softFill(x, (y) => LIDS_AT.forEach(([lx, ly]) => fillEllipse(y, lx, ly + 10, 165, 115)), u * 0.04, 1)),
+    eyeArea: mk((x) => softFill(x, lidsFill('area'), u * 0.04, 1)),
   };
   // 시작점 끌어오기·반짝이 밀도 확인용으로 영역의 진하기만 따로 모아 둔다
   maskData = {};
@@ -445,7 +475,8 @@ export async function openMakeup(f) {
     drawFeatures(fx, f);
     skin = hexToRgb(f.skin);
   }
-  buildMasks(f.custom ? `${f.id}|${f.lm.l}|${f.lm.r}|${f.lm.m}` : 'builtin');
+  eg = f.custom ? eyeGeom(f.lm.eyeW) : null;
+  buildMasks(f.custom ? `${f.id}|${f.lm.l}|${f.lm.r}|${f.lm.m}|${f.lm.eyeW || EYE_W}` : 'builtin');
   boost = (0.299 * skin[0] + 0.587 * skin[1] + 0.114 * skin[2]) / 255 < 0.55 ? 1.25 : 1;
   for (const k of MK_LAYERS) {
     lctx[k].clearRect(0, 0, FW, FH);
@@ -791,7 +822,8 @@ function autoApply(s) {
     growBox(MOUTH_AT[0] - 110, MOUTH_AT[1] - 70, MOUTH_AT[0] + 110, MOUTH_AT[1] + 70);
     return true;
   }
-  const list = s.t.auto === 'cheek' ? CHEEKS_AT : LIDS_AT;
+  const spots = s.t.auto === 'cheek' ? null : lidSpots('core');
+  const list = spots ? spots.map(([x, y]) => [x, y]) : CHEEKS_AT;
   const hit = near(list, U * 0.22);
   if (!hit) return false;
   const targets = s.mirror ? list : [hit.c];
@@ -800,7 +832,7 @@ function autoApply(s) {
   const [cr, cg, cb] = hexToRgb(s.color);
   s.box = [Infinity, Infinity, -Infinity, -Infinity];
   for (const [cx, cy] of targets) {
-    const [rx, ry] = s.t.auto === 'cheek' ? [U * 0.15, U * 0.11] : [U * 0.19, U * 0.1];
+    const [rx, ry] = !spots ? [U * 0.15, U * 0.11] : eg ? [eg.hw * 1.5, eg.hh * 1.8] : [U * 0.19, U * 0.1];
     rctx.save();
     rctx.setTransform(T);
     rctx.translate(cx, cy);
@@ -1593,6 +1625,11 @@ function bindFaceFit() {
     fitting.lm[fitting.drag.k] = [clamp(((e.clientX - r.left) / r.width) * FW, 0, FW), clamp(((e.clientY - r.top) / r.height) * FH, 0, FH)];
     drawFit_();
   });
+  $('#fitEye').addEventListener('input', (e) => {
+    if (!fitting) return;
+    fitting.lm.eyeW = e.target.value / 100;
+    drawFit_();
+  });
   const end = () => fitting && (fitting.drag = null);
   wrap.addEventListener('pointerup', end);
   wrap.addEventListener('pointercancel', end);
@@ -1616,6 +1653,7 @@ export async function openFaceFit(face, onDone) {
   if (!blob) return;
   fitting = { face, lm: structuredClone(face.lm), img: await loadImage(blob), onDone, drag: null };
   $('#fitName').value = face.name;
+  $('#fitEye').value = Math.round((face.lm.eyeW || EYE_W) * 100);
   const c = $('#fitCanvas');
   c.width = 600;
   c.height = 750;
@@ -1639,7 +1677,19 @@ function drawFit_() {
   x.stroke(FACE_PATH());
   x.setLineDash([]);
   x.lineWidth = 4;
-  for (const [ex, ey] of EYES_AT) x.stroke(eyePath(ex, ey));
+  const g = eyeGeom(fitting.lm.eyeW);
+  for (const [ex, ey] of EYES_AT) x.stroke(eyeOutline(ex, ey, 0, g));
+  x.strokeStyle = 'rgba(255,120,170,0.9)';
+  x.lineWidth = 3;
+  x.setLineDash([8, 8]);
+  for (const [cx, cy, rx, ry] of EYES_AT.map(([ex, ey]) => [ex, ey - g.hh * 1.3, g.hw * 1.3, g.hh * 1.55])) {
+    x.beginPath();
+    x.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    x.stroke();
+  }
+  x.setLineDash([]);
+  x.strokeStyle = 'rgba(45,190,126,0.95)';
+  x.lineWidth = 4;
   LIP_PATHS().forEach((p) => x.stroke(p));
   x.setTransform(1, 0, 0, 1, 0, 0);
   for (const [key, el2] of Object.entries({ l: '#fitL', r: '#fitR', m: '#fitM' })) {

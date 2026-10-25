@@ -281,7 +281,7 @@
 <dialog id="dlgFaceFit" class="dlg wide">
   <div class="dlg-body">
     <h2>눈·입 위치 맞추기</h2>
-    <p class="hint">점 세 개를 끌어서 <b style="color:#FF5A3C">빨강 = 화면 왼쪽 눈</b>, <b style="color:#3BA4FF">파랑 = 화면 오른쪽 눈</b>, <b style="color:#E0A100">노랑 = 입 가운데</b>에 놓아 주세요. 초록 점선이 얼굴에 맞으면 립스틱·아이섀도가 알맞은 자리에 칠해져요.</p>
+    <p class="hint">점 세 개를 끌어서 <b style="color:#FF5A3C">빨강 = 화면 왼쪽 눈</b>, <b style="color:#3BA4FF">파랑 = 화면 오른쪽 눈</b>, <b style="color:#E0A100">노랑 = 입 가운데</b>에 놓아 주세요. 눈 점은 <b>눈동자 한가운데</b>에 두고, <b>눈 크기</b>로 초록 눈 모양을 진짜 눈 크기에 맞추면 분홍 점선(눈두덩) 자리에 아이섀도가 칠해져요.</p>
     <div class="fit-main">
       <div id="fitWrap" class="fit-wrap">
         <canvas id="fitCanvas"></canvas>
@@ -291,6 +291,7 @@
       </div>
       <div class="fit-side">
         <label class="field"><span>이름</span><input id="fitName" placeholder="예: 엄마"></label>
+        <label class="field"><span>눈 크기</span><input type="range" id="fitEye" min="25" max="80" step="1"></label>
         <div class="actions">
           <button class="chunk" data-act="cancel">취소</button>
           <button class="chunk tomato" data-act="save">저장</button>
