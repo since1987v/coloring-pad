@@ -1,9 +1,8 @@
-import { $, $$, toast, uid, loadImage, drawFit, toBlob, thumbBlob, cleanLineArt, freeCanvas, shareOrDownload, pickFile, makeCanvas } from './util.js';
+import { $, $$, toast, uid, loadImage, drawFit, toBlob, thumbBlob, cleanLineArt, looksLikePhoto, photoToSketch, freeCanvas, shareOrDownload, pickFile, makeCanvas } from './util.js';
 import { db, getFile, putFile, delFile, deletePicture, getSetting, setSetting } from './store.js';
 import { ICON } from './icons.js';
 import { renderLetters } from './letters.js';
-import { renderMakeupHome, MK_LAYERS } from './makeup.js';
-import { FACES } from './faces.js';
+import { renderMakeupHome, MK_LAYERS, allFaces, customFaces } from './makeup.js';
 import { loadStars } from './progress.js';
 
 const WORK_MAX = 2048; // 도안은 긴 변 2048px로 맞춰 저장 (작은 그림도 키워서 붓 질감이 곱게 나오게)
@@ -50,6 +49,19 @@ export async function initLibrary(opts) {
 export async function refreshLibrary() {
   await reload();
   render();
+  // 관리 화면이 열려 있으면 같이 새로 그린다
+  document.dispatchEvent(new Event('library-changed'));
+}
+
+// ---------- 관리 화면에서 쓰는 것 ----------
+export const listPictures = () => pictures;
+
+export async function removePicture(p) {
+  if (!confirm(`'${p.title}' 그림을 지울까요?\n(색칠한 것도 같이 지워져요. 내 작품에 건 것은 남아요)`)) return false;
+  await deletePicture(p.id);
+  await refreshLibrary();
+  toast('그림을 지웠어요');
+  return true;
 }
 
 const saveState = () => setSetting('libState', { view: state.view, cat: state.cat, sort: state.sort });
@@ -97,7 +109,6 @@ function bind() {
     const card = e.target.closest('.card');
     if (card) openArt(card.dataset.art);
   });
-  $('#btnAdd').addEventListener('click', openAdd);
   $('#empty').addEventListener('click', (e) => {
     if (e.target.closest('[data-act=add]')) openAdd();
     if (e.target.closest('[data-act=blank]')) createBlank();
@@ -119,7 +130,6 @@ function render() {
   const color = state.mode === 'color';
   $('#colorTools').hidden = !color;
   $('#searchBox').hidden = !color;
-  $('#btnAdd').hidden = !color;
   $('#paneColor').hidden = !color;
   $('#paneLetters').hidden = state.mode !== 'letters';
   $('#paneMakeup').hidden = state.mode !== 'makeup';
@@ -266,7 +276,7 @@ function cardEl(p, i) {
   a.innerHTML = `
     <div class="thumb"><img alt="" src="${burl(thumb)}">${badge}${ribbon ? `<span class="ribbon">${ribbon}</span>` : ''}</div>
     <button class="fav ${p.favorite ? 'on' : ''}" data-act="fav" aria-label="좋아요">${ICON.heart}</button>
-    <div class="band"><div><div class="title"></div><div class="sub"></div></div><button class="more admin" data-act="edit" aria-label="정보 수정">${ICON.more}</button></div>`;
+    <div class="band"><div><div class="title"></div><div class="sub"></div></div></div>`;
   a.querySelector('.title').textContent = p.title;
   a.querySelector('.sub').textContent = [p.category || '미분류', ...(p.tags || []).map((t) => '#' + t)].join('  ');
   // 미리보기 주소가 그사이 바뀌어 못 불러오면 새 주소로 한 번 더 불러온다
@@ -307,8 +317,7 @@ function fillCatList() {
   $('#catList').innerHTML = cats.map((c) => `<option value="${c.replace(/"/g, '&quot;')}">`).join('');
 }
 
-function openAdd() {
-  if (document.body.classList.contains('locked')) return;
+export function openAdd() {
   $('#formAdd').reset();
   $('#addProgress').textContent = '';
   fillCatList();
@@ -334,6 +343,7 @@ async function doAdd() {
   const category = $('#addCat').value.trim();
   const tags = parseTags($('#addTags').value);
   const clean = $('#addClean').checked;
+  const photo = $('#addPhoto').checked;
   const title1 = $('#addTitle').value.trim();
   const sampleByKey = new Map(samples.map((f) => [keyName(f.name), f]));
   const go = $('#addGo');
@@ -344,7 +354,7 @@ async function doAdd() {
     $('#addProgress').textContent = `${i + 1} / ${lines.length} 등록 중…`;
     const sample = lines.length === 1 && samples.length === 1 ? samples[0] : sampleByKey.get(keyName(f.name));
     try {
-      await importPicture({ file: f, sample, title: (lines.length === 1 && title1) || prettyName(f.name), category, tags, clean });
+      await importPicture({ file: f, sample, title: (lines.length === 1 && title1) || prettyName(f.name), category, tags, clean, photo });
       ok++;
     } catch (err) {
       console.error(err);
@@ -357,10 +367,12 @@ async function doAdd() {
   await refreshLibrary();
 }
 
-async function processLine(file, clean) {
+// photo: 사진처럼 명암이 많은 그림이면 연한 스케치로 바꿔서, 칠할 칸이 진한 음영에 묻히지 않게 한다
+async function processLine(file, clean, photo = true) {
   const img = await loadImage(file);
   const c = drawFit(img, WORK_MAX, '#fff', true);
-  if (clean) cleanLineArt(c);
+  if (photo && looksLikePhoto(c)) photoToSketch(c);
+  else if (clean) cleanLineArt(c);
   try {
     return { blob: await toBlob(c), thumb: await thumbBlob(c), w: c.width, h: c.height };
   } finally {
@@ -380,8 +392,8 @@ async function attachSample(meta, file) {
   }
 }
 
-async function importPicture({ file, sample, title, category, tags, clean }) {
-  const line = await processLine(file, clean);
+async function importPicture({ file, sample, title, category, tags, clean, photo }) {
+  const line = await processLine(file, clean, photo);
   const meta = {
     id: uid('p'), title, category, tags, favorite: false, createdAt: Date.now(), coloredAt: 0,
     w: line.w, h: line.h, lineThumb: line.thumb, sampleThumb: null, colorThumb: null, hasSample: false,
@@ -392,7 +404,7 @@ async function importPicture({ file, sample, title, category, tags, clean }) {
 }
 
 // ---------- 정보 수정 ----------
-function openEdit(p) {
+export function openEdit(p) {
   editing = p;
   fillCatList();
   $('#editTitle').value = p.title;
@@ -591,10 +603,15 @@ async function exportBackup() {
     meta.pictures.push({ ...p, lineThumb: add(p.lineThumb), sampleThumb: add(p.sampleThumb), colorThumb: add(p.colorThumb), files });
   }
   for (const a of await db.all('gallery')) meta.gallery.push({ ...a, image: add(a.image), thumb: add(a.thumb) });
-  for (const k of ['customWords', 'traceStars']) meta.kv[k] = await getSetting(k, null);
+  for (const k of ['customWords', 'traceStars', 'customFaces']) meta.kv[k] = await getSetting(k, null);
+  // 내가 넣은 얼굴 사진
+  meta.faceFiles = [];
+  for (const f of await customFaces()) {
+    meta.faceFiles.push({ id: f.id, photo: add(await getFile(`face_${f.id}`, 'photo')), thumb: add(await getFile(`face_${f.id}`, 'thumb')) });
+  }
   // 꾸미기: 얼굴마다 화장 층 그림 + 액세서리 목록
   meta.makeup = [];
-  for (const f of FACES) {
+  for (const f of await allFaces()) {
     const look = await getSetting(`mk:${f.id}`, null);
     if (!look) continue;
     const layers = {};
@@ -631,6 +648,12 @@ async function importBackup(file) {
   }
   for (const a of meta.gallery) await db.put('gallery', { ...a, image: await get(a.image), thumb: await get(a.thumb) });
   for (const [k, v] of Object.entries(meta.kv || {})) if (v != null) await setSetting(k, v);
+  for (const f of meta.faceFiles || []) {
+    for (const k of ['photo', 'thumb']) {
+      const b = await get(f[k]);
+      if (b) await putFile(`face_${f.id}`, k, b);
+    }
+  }
   for (const m of meta.makeup || []) {
     const paint = await get(m.paint);
     if (paint) await putFile(`mk_${m.id}`, 'paint', paint);
@@ -653,7 +676,8 @@ const EMPTY_HTML = `
     <div><b>2</b>사진 앱이나 파일 앱에 저장해요</div>
     <div><b>3</b><strong>그림 넣기</strong>에서 골라 넣어요</div>
   </div>
-  <div class="actions center"><button class="chunk" data-act="help">자세한 방법</button><button class="chunk" data-act="blank">흰 도화지</button><button class="chunk tomato admin" data-act="add">그림 넣기</button></div>
+  <div class="actions center"><button class="chunk" data-act="help">자세한 방법</button><button class="chunk tomato" data-act="blank">흰 도화지에 그리기</button></div>
+  <p class="hint center">그림 넣기·지우기는 어른 메뉴에 있어요: 왼쪽 아래 <b>설정 버튼을 꾹</b> → <b>그림·얼굴 관리</b></p>
 </div>`;
 
 const HELP_HTML = `

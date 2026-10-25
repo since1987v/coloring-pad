@@ -35,12 +35,48 @@ async function os(name, mode) {
   return d.transaction(name, mode).objectStore(name);
 }
 
+// iPad Safari는 IndexedDB에 Blob을 넣다가 가끔 "Error preparing Blob/File data to be stored" 로 실패한다.
+// 그래서 Blob은 ArrayBuffer(+종류)로 바꿔 넣고, 꺼낼 때 다시 Blob으로 만든다. 예전에 넣은 Blob도 그대로 읽힌다.
+const isBlob = (v) => typeof Blob !== 'undefined' && v instanceof Blob;
+const isPacked = (v) => v && typeof v === 'object' && v.__b instanceof ArrayBuffer;
+const packOne = async (b) => ({ __b: await b.arrayBuffer(), t: b.type });
+
+async function pack(v) {
+  if (isBlob(v)) return packOne(v);
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    let out = null;
+    for (const [k, x] of Object.entries(v)) {
+      if (!isBlob(x)) continue;
+      out ??= { ...v };
+      out[k] = await packOne(x);
+    }
+    return out || v;
+  }
+  return v;
+}
+
+function unpack(v) {
+  if (isPacked(v)) return new Blob([v.__b], { type: v.t });
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    let out = null;
+    for (const [k, x] of Object.entries(v)) {
+      if (!isPacked(x)) continue;
+      out ??= { ...v };
+      out[k] = new Blob([x.__b], { type: x.t });
+    }
+    return out || v;
+  }
+  return v;
+}
+
 export const db = {
-  get: async (s, k) => wrap((await os(s, 'readonly')).get(k)),
-  all: async (s) => wrap((await os(s, 'readonly')).getAll()),
+  get: async (s, k) => unpack(await wrap((await os(s, 'readonly')).get(k))),
+  all: async (s) => (await wrap((await os(s, 'readonly')).getAll())).map(unpack),
   put: async (s, v, k) => {
+    // 변환(await)을 다 끝낸 뒤 트랜잭션을 연다. 중간에 기다리면 트랜잭션이 저절로 닫힌다
+    const value = await pack(v);
     const store = await os(s, 'readwrite');
-    return wrap(k === undefined ? store.put(v) : store.put(v, k));
+    return wrap(k === undefined ? store.put(value) : store.put(value, k));
   },
   del: async (s, k) => wrap((await os(s, 'readwrite')).delete(k)),
 };

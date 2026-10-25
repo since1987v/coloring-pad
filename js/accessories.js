@@ -23,7 +23,56 @@ export const ACC_CATS = [
   { id: 'eyes', name: '안경' },
   { id: 'ears', name: '귀걸이' },
   { id: 'neck', name: '목걸이' },
+  { id: 'props', name: '소품' },
+  { id: 'bubble', name: '말풍선' },
   { id: 'sticker', name: '스티커' },
+];
+
+// 인생네컷 사진관에 있는 소품들 (콧수염·왕안경·모자·동물 코·말풍선 …)
+const mirrorX = (w, body) => `${body}<g transform="translate(${w} 0) scale(-1 1)">${body}</g>`;
+const bubble = (key, name, text, c, at) => ({
+  key, cat: 'bubble', name, vb: [260, 170], at, c,
+  svg: (col) => `<path d="M22 10 H238 Q254 10 254 26 V108 Q254 124 238 124 H112 L70 164 L82 124 H22 Q6 124 6 108 V26 Q6 10 22 10Z" fill="#fff" stroke="#241B3A" stroke-width="6" stroke-linejoin="round"/><text x="130" y="88" text-anchor="middle" font-family="Do Hyeon, Apple SD Gothic Neo, sans-serif" font-size="${text.length > 3 ? 50 : 58}" font-weight="700" fill="${col}">${text}</text>`,
+});
+const PROPS = [
+  { key: 'mustache', cat: 'props', name: '콧수염', vb: [200, 70], at: [600, 848, 210], c: '#3A2A20',
+    svg: (c) => `<path d="M100 30 C80 10 50 10 35 25 C25 35 10 40 2 30 C8 55 40 62 70 50 C85 44 95 40 100 38 C105 40 115 44 130 50 C160 62 192 55 198 30 C190 40 175 35 165 25 C150 10 120 10 100 30Z" fill="${c}"/>` },
+  { key: 'bigGlasses', cat: 'props', name: '왕안경', vb: [320, 140], at: [600, 692, 640], c: '#FF7AB6',
+    svg: (c) => `<circle cx="80" cy="70" r="60" fill="${c}" fill-opacity=".25" stroke="#241B3A" stroke-width="16"/><circle cx="240" cy="70" r="60" fill="${c}" fill-opacity=".25" stroke="#241B3A" stroke-width="16"/><path d="M140 62 Q160 46 180 62" stroke="#241B3A" stroke-width="12" fill="none"/><circle cx="58" cy="48" r="10" fill="#fff" opacity=".6"/><circle cx="218" cy="48" r="10" fill="#fff" opacity=".6"/>` },
+  { key: 'mask', cat: 'props', name: '가면', vb: [320, 130], at: [600, 692, 620], c: '#8C6CFF',
+    svg: (c) => `<path fill-rule="evenodd" d="M10 40 C60 0 130 20 160 50 C190 20 260 0 310 40 C300 110 220 120 160 80 C100 120 20 110 10 40Z M52 62 a38 22 0 1 0 76 0 a38 22 0 1 0 -76 0Z M192 62 a38 22 0 1 0 76 0 a38 22 0 1 0 -76 0Z" fill="${c}" stroke="${dark(c)}" stroke-width="5"/><circle cx="160" cy="34" r="8" fill="#FFC12E"/><circle cx="40" cy="30" r="5" fill="#fff"/><circle cx="280" cy="30" r="5" fill="#fff"/>` },
+  { key: 'clownNose', cat: 'props', name: '빨간 코', vb: [100, 100], at: [600, 800, 100], c: '#FF3B3B',
+    svg: (c) => `<circle cx="50" cy="50" r="44" fill="${c}" stroke="${dark(c)}" stroke-width="4"/><circle cx="36" cy="34" r="12" fill="#fff" opacity=".6"/>` },
+  { key: 'pigNose', cat: 'props', name: '돼지 코', vb: [120, 80], at: [600, 806, 130], c: '#FFAEC9',
+    svg: (c) => `<ellipse cx="60" cy="40" rx="56" ry="38" fill="${c}" stroke="${dark(c, 0.3)}" stroke-width="4"/><ellipse cx="40" cy="40" rx="9" ry="14" fill="#8E3B46"/><ellipse cx="80" cy="40" rx="9" ry="14" fill="#8E3B46"/>` },
+  { key: 'dogEars', cat: 'props', name: '강아지 귀', vb: [600, 300], at: [600, 520, 780], c: '#A0643C',
+    svg: (c) => mirrorX(600, `<path d="M95 20 C40 20 10 90 20 200 C30 280 110 290 120 200 C125 140 130 60 95 20Z" fill="${c}" stroke="${dark(c, 0.35)}" stroke-width="6"/>`) },
+  { key: 'dogNose', cat: 'props', name: '강아지 코', vb: [200, 170], at: [600, 862, 190], c: '#FF7A9A',
+    svg: (c) => `<path d="M80 92 C80 160 120 160 120 92Z" fill="${c}" stroke="${dark(c)}" stroke-width="4"/><path d="M100 98 V135" stroke="${dark(c)}" stroke-width="4"/><path d="M100 70 V90 M68 90 Q100 110 132 90" stroke="#241B3A" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M100 70 C60 70 40 40 60 22 C80 6 120 6 140 22 C160 40 140 70 100 70Z" fill="#241B3A"/><ellipse cx="85" cy="28" rx="14" ry="7" fill="#fff" opacity=".5"/>` },
+  { key: 'whiskers', cat: 'props', name: '고양이 수염', vb: [520, 120], at: [600, 830, 640], c: '#241B3A',
+    svg: (c) => `${mirrorX(520, `<path d="M200 50 L22 18 M200 64 L10 64 M200 78 L22 110" stroke="${c}" stroke-width="7" stroke-linecap="round" fill="none"/>`)}<path d="M244 46 L276 46 L260 66Z" fill="#FF7A9A" stroke="#241B3A" stroke-width="4" stroke-linejoin="round"/>` },
+  { key: 'devil', cat: 'props', name: '악마 뿔', vb: [400, 150], at: [600, 320, 560], c: '#E53935',
+    svg: (c) => mirrorX(400, `<path d="M60 150 C40 100 50 40 90 10 C85 60 110 110 130 140Z" fill="${c}" stroke="${dark(c)}" stroke-width="5" stroke-linejoin="round"/>`) },
+  { key: 'halo', cat: 'props', name: '천사 링', vb: [300, 90], at: [600, 210, 420], c: '#FFD54F',
+    svg: (c) => `<ellipse cx="150" cy="45" rx="136" ry="30" fill="none" stroke="${c}" stroke-width="16"/><ellipse cx="150" cy="45" rx="136" ry="30" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="5"/>` },
+  { key: 'boppers', cat: 'props', name: '하트 더듬이', vb: [420, 230], at: [600, 260, 640], c: '#FF4F79',
+    svg: (c) => `<path d="M20 225 C40 120 380 120 400 225" stroke="#241B3A" stroke-width="12" fill="none" stroke-linecap="round"/>${mirrorX(420, `<path d="M130 150 Q112 112 130 82 Q148 54 122 36" stroke="#241B3A" stroke-width="5" fill="none"/><path d="${heart(118, 34, 26)}" fill="${c}" stroke="#241B3A" stroke-width="4"/>`)}` },
+  { key: 'topHat', cat: 'props', name: '신사 모자', vb: [220, 200], at: [600, 210, 360], rot: -6, c: '#241B3A',
+    svg: (c) => `<rect x="40" y="8" width="140" height="150" rx="12" fill="${c}"/><rect x="40" y="118" width="140" height="26" fill="#E53935"/><rect x="2" y="152" width="216" height="40" rx="20" fill="${c}"/><rect x="56" y="22" width="16" height="88" rx="8" fill="#fff" opacity=".18"/>` },
+  { key: 'strawHat', cat: 'props', name: '밀짚모자', vb: [420, 180], at: [600, 290, 740], c: '#FF6A9A',
+    svg: (c) => `<ellipse cx="210" cy="140" rx="205" ry="36" fill="#E9C46A" stroke="#B88A12" stroke-width="5"/><path d="M110 140 C110 50 150 20 210 20 C270 20 310 50 310 140Z" fill="#E9C46A" stroke="#B88A12" stroke-width="5"/><path d="M112 108 Q210 124 308 108 L310 134 Q210 150 110 134Z" fill="${c}"/>` },
+  { key: 'beret', cat: 'props', name: '베레모', vb: [260, 130], at: [640, 300, 470], rot: 10, c: '#E53950',
+    svg: (c) => `<ellipse cx="130" cy="80" rx="125" ry="45" fill="${c}"/><path d="M40 96 Q130 126 220 96" stroke="${dark(c)}" stroke-width="8" fill="none"/><rect x="124" y="20" width="12" height="22" rx="6" fill="${dark(c)}"/>` },
+  { key: 'lipsProp', cat: 'props', name: '입술 막대', vb: [200, 220], at: [600, 990, 300], c: '#E53935',
+    svg: (c) => `<rect x="94" y="100" width="12" height="118" rx="6" fill="#241B3A"/><path d="M20 70 C50 30 80 30 100 50 C120 30 150 30 180 70 C150 110 50 110 20 70Z" fill="${c}" stroke="${dark(c)}" stroke-width="5"/><path d="M28 70 C70 82 130 82 172 70" stroke="${dark(c, 0.4)}" stroke-width="4" fill="none"/>` },
+  { key: 'heartsFloat', cat: 'props', name: '하트 뿅뿅', vb: [200, 170], at: [860, 360, 220], c: '#FF4F79',
+    svg: (c) => `<path d="${heart(70, 95, 44)}" fill="${c}" stroke="#241B3A" stroke-width="4"/><path d="${heart(150, 60, 28)}" fill="${c}" stroke="#241B3A" stroke-width="4"/><path d="${heart(160, 135, 18)}" fill="${c}" stroke="#241B3A" stroke-width="3"/>` },
+  bubble('b_love', 'LOVE', 'LOVE', '#FF4F79', [860, 380, 300]),
+  bubble('b_best', '최고!', '최고!', '#FF5A3C', [860, 380, 300]),
+  bubble('b_hi', '안녕!', '안녕!', '#3BA4FF', [860, 380, 300]),
+  bubble('b_love2', '사랑해', '사랑해', '#E0457B', [860, 380, 300]),
+  bubble('b_cute', '귀여워', '귀여워', '#8C6CFF', [860, 380, 300]),
+  bubble('b_wow', 'WOW', 'WOW', '#2DBE7E', [860, 380, 300]),
 ];
 
 export const ACC = [
@@ -78,6 +127,7 @@ export const ACC = [
   { key: 'scarf', cat: 'neck', name: '스카프', vb: [340, 160], at: [600, 1215, 400], c: '#58A8F5',
     svg: (c) => `<path d="M10 20 Q170 90 330 20 L330 60 Q170 130 10 60 Z" fill="${c}"/><path d="M200 70 L240 150 L270 140 L235 62Z" fill="${dark(c, 0.12)}"/><path d="M40 44 Q170 100 300 44" stroke="#fff" stroke-opacity=".35" stroke-width="6" fill="none" stroke-dasharray="14 12"/>` },
 
+  ...PROPS,
   { key: 'heartSt', cat: 'sticker', name: '하트', vb: [100, 90], at: [780, 880, 80], c: '#FF4F79',
     svg: (c) => `<path d="${heart(50, 44, 36)}" fill="${c}"/>` },
   { key: 'starSt', cat: 'sticker', name: '별', vb: [100, 100], at: [420, 880, 80], c: '#FFC83D',
@@ -93,7 +143,7 @@ export const ACC = [
 for (const a of ACC) if (a.cat === 'ears') a.thumbVb = [-38, 0, 120, 120];
 
 // 목록 그림 위에 둘 액세서리 대표 그림
-export const CAT_ICON = { head: 'crown', eyes: 'roundGlasses', ears: 'heartEar', neck: 'heartNeck', sticker: 'heartSt' };
+export const CAT_ICON = { head: 'crown', eyes: 'roundGlasses', ears: 'heartEar', neck: 'heartNeck', props: 'mustache', bubble: 'b_love', sticker: 'heartSt' };
 
 export const ACC_MAP = Object.fromEntries(ACC.map((a) => [a.key, a]));
 

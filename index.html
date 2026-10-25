@@ -51,7 +51,6 @@
       <header class="lib-head">
         <h1 id="secTitle"></h1>
         <label id="searchBox" class="search-box"><span data-icon="search"></span><input id="search" type="search" placeholder="그림 찾기" autocomplete="off"></label>
-        <button id="btnAdd" class="chunk sun admin" data-icon="plus"><span class="lbl">그림 넣기</span></button>
       </header>
       <div id="colorTools" class="lib-tools">
         <nav id="chips" class="chips"></nav>
@@ -197,6 +196,7 @@
         <canvas id="mkShade" class="shade"></canvas>
         <canvas id="mkShine"></canvas>
         <canvas id="mkFeat"></canvas>
+        <canvas id="mkDoodle"></canvas>
         <div id="mkAcc" class="mk-acc"></div>
       </div>
       <canvas id="mkLoupe" class="loupe" width="180" height="180" hidden></canvas>
@@ -236,7 +236,45 @@
   </div>
 </section>
 
+<!-- ===== 그림·얼굴 관리 (어른용: 설정을 꾹 눌러서 들어온다) ===== -->
+<section id="manage" class="screen">
+  <header class="tb">
+    <button id="mgBack" class="chunk-ic" data-icon="back" aria-label="닫기"></button>
+    <div class="tape"><span>그림·얼굴 관리</span></div>
+    <div id="mgSeg" class="seg">
+      <button data-tab="pics">색칠 그림</button>
+      <button data-tab="faces">꾸미기 얼굴</button>
+    </div>
+    <div class="spacer"></div>
+    <button id="mgAdd" class="chunk tomato" data-icon="plus"><span id="mgAddLbl" class="lbl">그림 넣기</span></button>
+  </header>
+  <p id="mgHint" class="mg-hint"></p>
+  <div id="mgList" class="mg-list"></div>
+</section>
+
 <!-- ===== 대화상자 ===== -->
+<dialog id="dlgFaceFit" class="dlg wide">
+  <div class="dlg-body">
+    <h2>눈·입 위치 맞추기</h2>
+    <p class="hint">점 세 개를 끌어서 <b style="color:#FF5A3C">빨강 = 화면 왼쪽 눈</b>, <b style="color:#3BA4FF">파랑 = 화면 오른쪽 눈</b>, <b style="color:#E0A100">노랑 = 입 가운데</b>에 놓아 주세요. 초록 점선이 얼굴에 맞으면 립스틱·아이섀도가 알맞은 자리에 칠해져요.</p>
+    <div class="fit-main">
+      <div id="fitWrap" class="fit-wrap">
+        <canvas id="fitCanvas"></canvas>
+        <span id="fitL" class="fit-mark" data-k="l" style="--m:#FF5A3C"></span>
+        <span id="fitR" class="fit-mark" data-k="r" style="--m:#3BA4FF"></span>
+        <span id="fitM" class="fit-mark" data-k="m" style="--m:#FFC12E"></span>
+      </div>
+      <div class="fit-side">
+        <label class="field"><span>이름</span><input id="fitName" placeholder="예: 엄마"></label>
+        <div class="actions">
+          <button class="chunk" data-act="cancel">취소</button>
+          <button class="chunk tomato" data-act="save">저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="dlgAdd" class="dlg">
   <form id="formAdd" class="dlg-body" onsubmit="return false">
     <h2>그림 넣기</h2>
@@ -249,6 +287,7 @@
       <label class="field"><span>태그 (쉼표로 구분)</span><input id="addTags" placeholder="예: 고양이, 쉬움"></label>
     </div>
     <label class="check"><input type="checkbox" id="addClean" checked> 선 깔끔하게 정리 (배경은 하얗게, 선은 진하게)</label>
+    <label class="check"><input type="checkbox" id="addPhoto" checked> 사진이면 연한 스케치 도안으로 바꾸기 (진한 그림자를 날려요)</label>
     <p id="addProgress" class="progress"></p>
     <div class="actions">
       <button type="button" id="addCancel" class="chunk">취소</button>
@@ -289,7 +328,7 @@
   <div class="dlg-body">
     <h2>설정</h2>
     <div class="set-row">
-      <div><b>아이 잠금</b><small>넣기·수정·삭제 버튼을 숨기고, 설정은 꾹 눌러야 열려요</small></div>
+      <div><b>아이 잠금</b><small>내 작품 지우기·내 단어 넣기·손가락 설정 버튼까지 숨겨요</small></div>
       <label class="switch"><input type="checkbox" id="setLock"><span></span></label>
     </div>
     <div class="set-row">
@@ -316,6 +355,7 @@
       <label class="switch"><input type="checkbox" id="setFreeMakeup"><span></span></label>
     </div>
     <div class="menu-list">
+      <button class="chunk tomato" data-act="manage" data-icon="image"><span class="lbl">그림·얼굴 관리 (넣기·지우기)</span></button>
       <button class="chunk" data-act="help">사용법 · ChatGPT로 도안 만들기</button>
       <button class="chunk" data-act="renameCat">지금 고른 카테고리 이름 바꾸기</button>
       <button class="chunk" data-act="backup">백업 파일 만들기</button>
@@ -402,6 +442,7 @@
 <input type="file" id="fileLine" accept="image/*" hidden>
 <input type="file" id="fileSample" accept="image/*" hidden>
 <input type="file" id="fileRestore" hidden>
+<input type="file" id="fileFace" accept="image/*" hidden>
 <div id="toast" role="status"></div>
 
 <script type="module" src="js/app.js"></script>

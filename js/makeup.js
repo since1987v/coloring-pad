@@ -1,8 +1,8 @@
-import { $, $$, toast, uid, clamp, makeCanvas, freeCanvas, toBlob, loadImage, shareOrDownload, showScreen, hexToRgb } from './util.js';
-import { db, getFile, putFile, getSetting, setSetting } from './store.js';
+import { $, $$, toast, uid, clamp, makeCanvas, freeCanvas, toBlob, loadImage, shareOrDownload, showScreen, hexToRgb, drawFit } from './util.js';
+import { db, getFile, putFile, delFile, getSetting, setSetting } from './store.js';
 import { pressureOf } from './editor.js';
 import {
-  FW, FH, FACES, U, AXIS, EYES_AT, LIDS_AT, CHEEKS_AT, MOUTH_AT, eyePath, LIP_PATHS,
+  FW, FH, FACES, U, AXIS, EYES_AT, LIDS_AT, CHEEKS_AT, MOUTH_AT, eyePath, LIP_PATHS, FACE_PATH,
   drawBase, drawBackground, drawFeatures, drawShading, drawSkinShape, fillEllipse, faceThumb,
 } from './faces.js';
 import { ACC, ACC_CATS, ACC_MAP, CAT_ICON, accHeight, accSvg, accThumbSvg } from './accessories.js';
@@ -10,8 +10,52 @@ import { ICON } from './icons.js';
 import { speak } from './speech.js';
 
 // ---------- 화장 층 ----------
-// 아래에서 위로: 파운데이션 → 볼 → 눈두덩 → 입술 → 아이라인 → 얼굴 그림 → (명암, 곱하기) → 광택·반짝이 → 눈·코·입 선
-export const MK_LAYERS = ['foundation', 'blush', 'shadow', 'lips', 'liner', 'paint', 'shine'];
+// 아래에서 위로: 파운데이션 → 볼 → 눈두덩 → 입술 → 아이라인 → 얼굴 그림 → (명암, 곱하기) → 광택·반짝이 → 눈·코·입 선 → 자유 그림
+export const MK_LAYERS = ['foundation', 'blush', 'shadow', 'lips', 'liner', 'paint', 'shine', 'doodle'];
+// 따로 자리가 정해진 층 (나머지는 #mkLayers 안에 순서대로 쌓인다)
+const OWN_EL = { shine: 'shine', doodle: 'doodle' };
+
+// ---------- 얼굴 위치 ----------
+// 기본 얼굴(코드로 그린 그림)의 좌표를 '본'으로 삼고, 올린 사진은 눈·입 세 점으로 본을 사진 위에 옮긴다.
+// T: 본 좌표 → 화면(1200×1500) 좌표.  Ue: 화면에서의 얼굴 크기 기준 (번짐·붓 크기)
+let T = new DOMMatrix();
+let Ti = new DOMMatrix();
+let Ue = U;
+let Sc = 1;
+let ANG = 0;
+const TPL = [EYES_AT[0], EYES_AT[1], MOUTH_AT]; // 본의 왼눈 · 오른눈 · 입
+
+// 세 점 짝(본 → 사진)으로 아핀 변환을 구한다
+export function affineFrom(Q) {
+  const [[x1, y1], [x2, y2], [x3, y3]] = TPL;
+  const det = x1 * (y2 - y3) - y1 * (x2 - x3) + (x2 * y3 - x3 * y2);
+  const solve = (v1, v2, v3) => [
+    (v1 * (y2 - y3) - y1 * (v2 - v3) + (v2 * y3 - v3 * y2)) / det,
+    (x1 * (v2 - v3) - v1 * (x2 - x3) + (x2 * v3 - x3 * v2)) / det,
+    (x1 * (y2 * v3 - y3 * v2) - y1 * (x2 * v3 - x3 * v2) + v1 * (x2 * y3 - x3 * y2)) / det,
+  ];
+  const [a, c, e] = solve(Q[0][0], Q[1][0], Q[2][0]);
+  const [b, d, f] = solve(Q[0][1], Q[1][1], Q[2][1]);
+  return new DOMMatrix([a, b, c, d, e, f]);
+}
+
+function setFaceTransform(m) {
+  T = m;
+  Ti = m.inverse();
+  Sc = Math.sqrt(Math.abs(m.a * m.d - m.b * m.c)) || 1;
+  ANG = (Math.atan2(m.b, m.a) * 180) / Math.PI;
+  Ue = U * Sc;
+}
+
+const tp = (x, y) => {
+  const p = T.transformPoint({ x, y });
+  return [p.x, p.y];
+};
+// 좌우 같이 칠하기: 본으로 옮겨 대칭축(가운데)에서 뒤집은 뒤 다시 화면으로
+function mirrorPt(x, y) {
+  const p = Ti.transformPoint({ x, y });
+  return tp(2 * AXIS - p.x, p.y);
+}
 
 // ---------- 색 ----------
 const LIP = ['#FF4F79', '#E0115F', '#F77FBE', '#C2185B', '#FF7F6A', '#D8A1A4', '#9C27B0', '#8E3B46'];
@@ -55,6 +99,9 @@ const MK_TOOLS = [
     icon: (c) => `<rect x="16" y="24" width="32" height="32" rx="8" fill="${c}" stroke="#241B3A" stroke-width="2"/><rect x="18" y="15" width="28" height="11" rx="3" fill="#CFC8BE" stroke="#241B3A" stroke-width="2"/><path d="M26 34l2 5 5 2-5 2-2 5-2-5-5-2 5-2z M39 44l1.4 3 3 1.4-3 1.4-1.4 3-1.4-3-3-1.4 3-1.4z" fill="#fff"/>` },
   { id: 'facepaint', name: '얼굴 그림', layer: 'paint', palette: BRIGHT, r: 0.02, hard: 0.85, dabA: 0.85, flow: 0.95, max: 0.95, mask: 'paint', small: true,
     icon: (c) => `<path d="M14 54 L40 22" stroke="#C9935E" stroke-width="7" stroke-linecap="round"/><path d="M38 24 L46 10 Q55 7 53 17 L44 28 Z" fill="${c}"/><circle cx="50" cy="50" r="7" fill="${c}" stroke="#241B3A" stroke-width="2"/>` },
+  // 얼굴 밖(몸·옷·배경)까지 어디든 그리는 붓. 맨 위 층이라 눈·머리카락 위에도 그려진다
+  { id: 'doodle', name: '그림 그리기', layer: 'doodle', palette: [...BRIGHT, '#8D5524', '#241B3A'], r: 0.022, hard: 0.85, dabA: 0.85, flow: 0.95, max: 0.97, mask: null, small: true, anywhere: true,
+    icon: (c) => `<rect x="6" y="38" width="52" height="20" rx="4" fill="#fff" stroke="#241B3A" stroke-width="2"/><path d="M12 50 Q22 40 30 48 T48 46" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round"/><g transform="rotate(35 40 20)"><rect x="35" y="2" width="10" height="28" rx="2" fill="${c}" stroke="#241B3A" stroke-width="2"/><path d="M35 30 L45 30 L40 40 Z" fill="#EDCB98" stroke="#241B3A" stroke-width="2" stroke-linejoin="round"/></g>` },
   { id: 'tissue', name: '지우개', eraser: true, r: 0.07, hard: 0.2, palette: [],
     icon: () => `<rect x="10" y="32" width="44" height="24" rx="5" fill="#9ED3F5" stroke="#241B3A" stroke-width="2"/><path d="M22 32 Q24 12 32 15 Q40 10 42 32 Z" fill="#fff" stroke="#241B3A" stroke-width="2"/>` },
 ];
@@ -94,7 +141,7 @@ let onClose = () => {};
 
 const curTool = () => MK_TOOLS.find((t) => t.id === prefs.tool) || MK_TOOLS[0];
 const shadeOf = (t) => prefs.shades[t.id] || t.palette[0] || '#000000';
-const maskFor = (t) => (t.eraser ? null : freeMode ? 'free' : t.mask);
+const maskFor = (t) => (t.eraser || t.anywhere ? null : freeMode ? 'free' : t.mask);
 
 export function setFreeMode(v) {
   freeMode = v;
@@ -102,12 +149,14 @@ export function setFreeMode(v) {
 
 // ---------- 영역(마스크) ----------
 // 그림자 번짐으로 모양의 가장자리를 부드럽게 만든다 (blur: 픽셀, 얼굴 크기에 비례해서 넘긴다)
+// 모양은 화면 밖에 그리고 그림자만 제자리에 떨어뜨린다. 그림자 거리는 화면 픽셀 기준이라 본→사진 변환이 있어도 맞게 화면 쪽에서 민다
 function softFill(x, draw, blur, alpha = 1) {
   x.save();
+  const m = x.getTransform();
+  x.setTransform(m.a, m.b, m.c, m.d, m.e - 20000, m.f);
   x.shadowColor = `rgba(0,0,0,${alpha})`;
   x.shadowBlur = blur;
   x.shadowOffsetX = 20000;
-  x.translate(-20000, 0);
   x.fillStyle = '#000';
   x.strokeStyle = '#000';
   draw(x);
@@ -134,47 +183,53 @@ const lipsWide = (w) => (y) => {
   });
 };
 
-// 도구마다: 중심 영역(진하게) + 번짐 허용 영역(옅게) − 보호 영역
-function buildMasks() {
-  if (masks) return;
+// 도구마다: 중심 영역(진하게) + 번짐 허용 영역(옅게) − 보호 영역.
+// 모양은 본 좌표로 그리고(T로 사진 위에 옮김), 번짐(그림자) 크기는 화면에서의 얼굴 크기 Ue 기준
+let masksFor = '';
+function buildMasks(key) {
+  if (masksFor === key) return;
+  masksFor = key;
+  const u = Ue;
   const mk = (fn) => {
     const c = makeCanvas(FW, FH);
-    fn(c.getContext('2d'));
+    const x = c.getContext('2d');
+    x.setTransform(T);
+    fn(x);
     return c;
   };
   masks = {
     lips: mk((x) => {
-      softFill(x, lipsWide(U * 0.045), U * 0.03, 0.3);
-      softFill(x, lipsShape, U * 0.006, 1);
+      softFill(x, lipsWide(U * 0.045), u * 0.03, 0.3);
+      softFill(x, lipsShape, u * 0.006, 1);
     }),
     lids: mk((x) => {
-      softFill(x, (y) => LIDS_AT.forEach(([lx, ly]) => fillEllipse(y, lx, ly - 6, 150, 98)), U * 0.08, 0.42);
-      softFill(x, (y) => LIDS_AT.forEach(([lx, ly]) => fillEllipse(y, lx, ly, 112, 64)), U * 0.05, 1);
-      cut(x, (y) => softFill(y, eyesShape(0), U * 0.005, 1));
+      softFill(x, (y) => LIDS_AT.forEach(([lx, ly]) => fillEllipse(y, lx, ly - 6, 150, 98)), u * 0.08, 0.42);
+      softFill(x, (y) => LIDS_AT.forEach(([lx, ly]) => fillEllipse(y, lx, ly, 112, 64)), u * 0.05, 1);
+      cut(x, (y) => softFill(y, eyesShape(0), u * 0.005, 1));
     }),
     liner: mk((x) => {
-      softFill(x, eyesShape(24), U * 0.012, 1);
+      softFill(x, eyesShape(24), u * 0.012, 1);
       cut(x, (y) => softFill(y, eyesShape(-7), 2, 1));
     }),
     blush: mk((x) => {
-      softFill(x, drawSkinShape, U * 0.012, 1);
-      cut(x, (y) => softFill(y, eyesShape(16), U * 0.03, 1));
-      cut(x, (y) => softFill(y, lipsWide(U * 0.02), U * 0.02, 1));
+      softFill(x, drawSkinShape, u * 0.012, 1);
+      cut(x, (y) => softFill(y, eyesShape(16), u * 0.03, 1));
+      cut(x, (y) => softFill(y, lipsWide(U * 0.02), u * 0.02, 1));
     }),
     skin: mk((x) => {
-      softFill(x, drawSkinShape, U * 0.012, 1);
-      cut(x, (y) => softFill(y, eyesShape(4), U * 0.008, 1));
+      softFill(x, drawSkinShape, u * 0.012, 1);
+      cut(x, (y) => softFill(y, eyesShape(4), u * 0.008, 1));
     }),
     paint: mk((x) => {
-      softFill(x, drawSkinShape, U * 0.006, 1);
+      softFill(x, drawSkinShape, u * 0.006, 1);
       cut(x, (y) => softFill(y, eyesShape(2), 2, 1));
     }),
     glitter: mk((x) => {
-      softFill(x, drawSkinShape, U * 0.006, 1);
+      softFill(x, drawSkinShape, u * 0.006, 1);
       cut(x, (y) => softFill(y, eyesShape(4), 2, 1));
     }),
     free: mk((x) => {
-      softFill(x, drawSkinShape, U * 0.004, 1);
+      softFill(x, drawSkinShape, u * 0.004, 1);
       cut(x, (y) => softFill(y, eyesShape(-2), 2, 1));
     }),
     // 립글로스 광택이 생기는 자리 (아랫입술 윗부분, 윗입술 양쪽)
@@ -183,10 +238,10 @@ function buildMasks() {
         fillEllipse(y, MOUTH_AT[0], 922, 42, 9);
         fillEllipse(y, 582, 889, 16, 5);
         fillEllipse(y, 618, 889, 16, 5);
-      }, U * 0.012, 1);
+      }, u * 0.012, 1);
     }),
-    lipsCore: mk((x) => softFill(x, lipsWide(U * 0.06), U * 0.03, 1)),
-    eyeArea: mk((x) => softFill(x, (y) => LIDS_AT.forEach(([lx, ly]) => fillEllipse(y, lx, ly + 10, 165, 115)), U * 0.04, 1)),
+    lipsCore: mk((x) => softFill(x, lipsWide(U * 0.06), u * 0.03, 1)),
+    eyeArea: mk((x) => softFill(x, (y) => LIDS_AT.forEach(([lx, ly]) => fillEllipse(y, lx, ly + 10, 165, 115)), u * 0.04, 1)),
   };
   // 시작점 끌어오기·반짝이 밀도 확인용으로 영역의 진하기만 따로 모아 둔다
   maskData = {};
@@ -243,12 +298,12 @@ function dabFor(color, hard) {
 export async function initMakeup(opts) {
   onClose = opts.onClose;
   for (const [k, id] of Object.entries({
-    wrap: 'mkWrap', stage: 'mkStage', base: 'mkBase', layers: 'mkLayers', scratch: 'mkScratch', shade: 'mkShade', shine: 'mkShine', feat: 'mkFeat', acc: 'mkAcc',
+    wrap: 'mkWrap', stage: 'mkStage', base: 'mkBase', layers: 'mkLayers', scratch: 'mkScratch', shade: 'mkShade', shine: 'mkShine', feat: 'mkFeat', doodle: 'mkDoodle', acc: 'mkAcc',
     rail: 'mkRail', sizes: 'mkSizes', shades: 'mkShades', items: 'mkItems', accTools: 'mkAccTools', undo: 'mkUndo', redo: 'mkRedo',
     menu: 'dlgMkMenu', title: 'mkTitle', mirror: 'mkMirror', looks: 'mkLooks', loupe: 'mkLoupe', ghost: 'mkGhost', finish: 'mkFinish',
   })) el[k] = document.getElementById(id);
   for (const k of MK_LAYERS) {
-    const c = k === 'shine' ? el.shine : el.layers.appendChild(document.createElement('canvas'));
+    const c = OWN_EL[k] ? el[OWN_EL[k]] : el.layers.appendChild(document.createElement('canvas'));
     c.width = FW;
     c.height = FH;
     lctx[k] = c.getContext('2d');
@@ -265,6 +320,7 @@ export async function initMakeup(opts) {
   raw = makeCanvas(FW, FH);
   rctx = raw.getContext('2d');
   prefs = { ...prefs, ...(await getSetting('makeupPrefs', {})) };
+  bindFaceFit();
 
   $('#mkSeg').addEventListener('click', (e) => {
     const b = e.target.closest('button');
@@ -368,17 +424,28 @@ export async function openMakeup(f) {
   face = f;
   el.title.textContent = f.name;
   showScreen('makeup');
-  buildMasks();
-  const [r, g, b] = hexToRgb(f.skin);
-  boost = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.55 ? 1.25 : 1;
-  el.stage.style.background = `radial-gradient(circle at 50% 43%, rgba(255,255,255,.75), rgba(255,255,255,0) 48%), ${f.bg}`;
   const bx = el.base.getContext('2d');
   const sx = el.shade.getContext('2d');
   const fx = el.feat.getContext('2d');
   for (const x of [bx, sx, fx, dctx, rctx]) x.clearRect(0, 0, FW, FH);
-  drawBase(bx, f, false);
-  drawShading(sx, f);
-  drawFeatures(fx, f);
+  el.stage.style.background = `radial-gradient(circle at 50% 43%, rgba(255,255,255,.75), rgba(255,255,255,0) 48%), ${f.bg}`;
+  let skin;
+  if (f.custom) {
+    // 올린 사진: 사진이 바탕이고, 눈·입 세 점으로 화장 영역을 사진 얼굴에 맞춘다
+    setFaceTransform(affineFrom([f.lm.l, f.lm.r, f.lm.m]));
+    const photo = await getFile(`face_${f.id}`, 'photo');
+    if (photo) bx.drawImage(await loadImage(photo), 0, 0, FW, FH);
+    const [cx, cy] = tp(CHEEKS_AT[0][0], CHEEKS_AT[0][1]);
+    skin = bx.getImageData(clamp(cx | 0, 0, FW - 1), clamp(cy | 0, 0, FH - 1), 1, 1).data;
+  } else {
+    setFaceTransform(new DOMMatrix());
+    drawBase(bx, f, false);
+    drawShading(sx, f);
+    drawFeatures(fx, f);
+    skin = hexToRgb(f.skin);
+  }
+  buildMasks(f.custom ? `${f.id}|${f.lm.l}|${f.lm.r}|${f.lm.m}` : 'builtin');
+  boost = (0.299 * skin[0] + 0.587 * skin[1] + 0.114 * skin[2]) / 255 < 0.55 ? 1.25 : 1;
   for (const k of MK_LAYERS) {
     lctx[k].clearRect(0, 0, FW, FH);
     const blob = await getFile(`mk_${f.id}`, k);
@@ -549,7 +616,7 @@ function beginStroke(e) {
   const mask = maskFor(t);
   let off = { x: 0, y: 0 };
   if (t.snap && !freeMode) {
-    const s = snapPoint(mask, p0.x, p0.y, U * t.snap);
+    const s = snapPoint(mask, p0.x, p0.y, Ue * t.snap);
     if (s) off = { x: s.x - p0.x, y: s.y - p0.y };
   }
   const layers = t.eraser ? MK_LAYERS : t.shine ? [t.layer, 'shine'] : [t.layer];
@@ -559,7 +626,8 @@ function beginStroke(e) {
   }
   st = {
     t, mask, off, layers, color: shadeOf(t), mirror: !!(t.mirror && prefs.mirror),
-    r: U * t.r * SIZE_F[prefs.sizes[t.id] ?? 1], box: [Infinity, Infinity, -Infinity, -Infinity],
+    // 얼굴 화장 붓은 얼굴 크기에, 자유 그림 붓은 종이 크기에 맞춘다
+    r: (t.anywhere ? U : Ue) * t.r * SIZE_F[prefs.sizes[t.id] ?? 1], box: [Infinity, Infinity, -Infinity, -Infinity],
     last: null, sm: null, carry: 0, len: 0, t0: performance.now(), id: e.pointerId, type: e.pointerType,
     start: { x: p0.x + off.x, y: p0.y + off.y }, dab: t.eraser || t.glitter ? null : dabFor(shadeOf(t), t.hard),
   };
@@ -612,7 +680,7 @@ function grow(x, y, r) {
 }
 
 function stamp(x, y, r, p) {
-  const pts = st.mirror ? [[x, y], [2 * AXIS - x, y]] : [[x, y]];
+  const pts = st.mirror ? [[x, y], mirrorPt(x, y)] : [[x, y]];
   for (const [px, py] of pts) {
     grow(px, py, r + 2);
     if (st.t.eraser) {
@@ -648,7 +716,7 @@ function sparkle(x, y, r) {
     if (k >= 3) continue;
     glitterCells.set(key, k + 1);
     glitterCount++;
-    const s = U * (0.004 + Math.random() * 0.006);
+    const s = Ue * (0.004 + Math.random() * 0.006);
     const mixW = Math.random() * 0.6;
     c.fillStyle = `rgba(${Math.round(cr + (255 - cr) * mixW)},${Math.round(cg + (255 - cg) * mixW)},${Math.round(cb + (255 - cb) * mixW)},0.95)`;
     c.beginPath();
@@ -688,24 +756,38 @@ function rectOf(box) {
   return x1 > x0 && y1 > y0 ? [x0, y0, x1 - x0, y1 - y0] : null;
 }
 
-// 톡 누르면 그 부위에 기본 진하기로 한 번에 바른다
+// 톡 누르면 그 부위에 기본 진하기로 한 번에 바른다.
+// 거리 판단과 그리기는 본 좌표에서 하고(T로 화면에 옮김), 칠한 범위(box)는 화면 좌표로 넓힌다
 function autoApply(s) {
-  const { x, y } = s.start;
+  const q = Ti.transformPoint({ x: s.start.x, y: s.start.y });
   const near = (list, R) => {
     let best = null;
     for (const c of list) {
-      const d = Math.hypot(c[0] - x, c[1] - y);
+      const d = Math.hypot(c[0] - q.x, c[1] - q.y);
       if (d < R && (!best || d < best.d)) best = { c, d };
     }
     return best;
   };
+  const growBox = (x0, y0, x1, y1) => {
+    for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) {
+      const [sx, sy] = tp(x, y);
+      s.box[0] = Math.min(s.box[0], sx);
+      s.box[1] = Math.min(s.box[1], sy);
+      s.box[2] = Math.max(s.box[2], sx);
+      s.box[3] = Math.max(s.box[3], sy);
+    }
+  };
   if (s.t.auto === 'lips') {
-    if (Math.hypot(MOUTH_AT[0] - x, MOUTH_AT[1] - y) > U * 0.17) return false;
+    if (Math.hypot(MOUTH_AT[0] - q.x, MOUTH_AT[1] - q.y) > U * 0.17) return false;
     rctx.clearRect(0, 0, FW, FH);
+    rctx.save();
+    rctx.setTransform(T);
     rctx.globalAlpha = 1;
     rctx.fillStyle = s.color;
     LIP_PATHS().forEach((p) => rctx.fill(p));
-    s.box = [MOUTH_AT[0] - 110, MOUTH_AT[1] - 70, MOUTH_AT[0] + 110, MOUTH_AT[1] + 70];
+    rctx.restore();
+    s.box = [Infinity, Infinity, -Infinity, -Infinity];
+    growBox(MOUTH_AT[0] - 110, MOUTH_AT[1] - 70, MOUTH_AT[0] + 110, MOUTH_AT[1] + 70);
     return true;
   }
   const list = s.t.auto === 'cheek' ? CHEEKS_AT : LIDS_AT;
@@ -719,6 +801,7 @@ function autoApply(s) {
   for (const [cx, cy] of targets) {
     const [rx, ry] = s.t.auto === 'cheek' ? [U * 0.15, U * 0.11] : [U * 0.19, U * 0.1];
     rctx.save();
+    rctx.setTransform(T);
     rctx.translate(cx, cy);
     rctx.scale(1, ry / rx);
     const g = rctx.createRadialGradient(0, 0, 0, 0, 0, rx);
@@ -728,10 +811,7 @@ function autoApply(s) {
     rctx.fillStyle = g;
     rctx.fillRect(-rx, -rx, rx * 2, rx * 2);
     rctx.restore();
-    s.box[0] = Math.min(s.box[0], cx - rx);
-    s.box[1] = Math.min(s.box[1], cy - ry);
-    s.box[2] = Math.max(s.box[2], cx + rx);
-    s.box[3] = Math.max(s.box[3], cy + ry);
+    growBox(cx - rx, cy - ry, cx + rx, cy + ry);
   }
   return true;
 }
@@ -786,7 +866,7 @@ function endStroke() {
   const s = st;
   st = null;
   el.loupe.hidden = true;
-  const tap = performance.now() - s.t0 < 350 && s.len < U * 0.02;
+  const tap = performance.now() - s.t0 < 350 && s.len < Ue * 0.02;
   if (tap && s.t.auto) {
     if (autoApply(s)) refresh(s);
   }
@@ -845,11 +925,12 @@ function showLoupe(e) {
       x.drawImage(c, sx, sy, src, src, 0, 0, 180, 180);
     };
     draw(el.base);
-    for (const k of MK_LAYERS) if (k !== 'shine') draw(lctx[k].canvas);
+    for (const k of MK_LAYERS) if (!OWN_EL[k]) draw(lctx[k].canvas);
     draw(el.scratch, +el.scratch.style.opacity || 1);
     draw(el.shade, 1, 'multiply');
     draw(el.shine);
     draw(el.feat);
+    draw(el.doodle);
     x.globalAlpha = 1;
     x.globalCompositeOperation = 'source-over';
     x.strokeStyle = 'rgba(36,27,58,.6)';
@@ -862,15 +943,19 @@ function showLoupe(e) {
 }
 
 // ---------- 액세서리 ----------
+const anchorOf = (d) => tp(d.at[0], d.at[1]);
+
 function addAcc(key, at) {
   const d = ACC_MAP[key];
   snapshotAcc();
   // 같은 것을 여러 번 누르면 겹치지 않게 조금씩 비켜서 놓는다
   const same = accs.filter((a) => a.key === key).length;
   const jitter = d.emoji && !at ? (Math.random() - 0.5) * 160 : 0;
-  const x = at ? at.x : d.at[0] + jitter + same * 46;
-  const y = at ? at.y : d.at[1] + jitter * 0.6 + same * 34;
-  accs.push({ key, x, y, w: d.at[2], rot: d.rot || 0, c: d.c || null, flip: false });
+  // 기본 자리는 본 좌표 → 올린 사진이면 사진 얼굴 위치·크기·기울기에 맞춘다
+  const [ax, ay] = anchorOf(d);
+  const x = at ? at.x : ax + jitter + same * 46;
+  const y = at ? at.y : ay + jitter * 0.6 + same * 34;
+  accs.push({ key, x, y, w: d.at[2] * Sc, rot: (d.rot || 0) + ANG, c: d.c || null, flip: false });
   sel = accs.length - 1;
   renderAcc();
   renderDock();
@@ -907,11 +992,12 @@ function bindItems() {
     el.ghost.style.left = e.clientX + 'px';
     el.ghost.style.top = e.clientY + 'px';
     const p = toStage(e);
-    const near = Math.hypot(p.x - d.at[0], p.y - d.at[1]) < U * 0.08;
-    drag.snap = near ? { x: d.at[0], y: d.at[1] } : null;
+    const [ax, ay] = anchorOf(d);
+    const near = Math.hypot(p.x - ax, p.y - ay) < Ue * 0.08;
+    drag.snap = near ? { x: ax, y: ay } : null;
     drag.inside = p.x > 0 && p.y > 0 && p.x < FW && p.y < FH;
     drag.p = p;
-    renderAcc(near ? { x: d.at[0], y: d.at[1], r: Math.max(d.at[2], accHeight(d, d.at[2])) * 0.6 } : null);
+    renderAcc(near ? { x: ax, y: ay, r: Math.max(d.at[2], accHeight(d, d.at[2])) * 0.6 * Sc } : null);
   });
   const end = (e, cancelled) => {
     if (!drag || e.pointerId !== drag.id) return;
@@ -1095,7 +1181,7 @@ function onMenu(e) {
   if (act === 'eyes') resetPart([['shadow', null], ['liner', null], ['shine', 'eyeArea']]);
   else if (act === 'lips') resetPart([['lips', null], ['shine', 'lipsCore']]);
   else if (act === 'cheeks') resetPart([['blush', null]]);
-  else if (act === 'paint') resetPart([['paint', null], ['shine', null], ['foundation', null]]);
+  else if (act === 'paint') resetPart([['paint', null], ['doodle', null], ['shine', null], ['foundation', null]]);
   else if (act === 'unacc' && accs.length) {
     snapshotAcc();
     accs = [];
@@ -1198,12 +1284,13 @@ async function composite(maxW, opts = {}) {
   x.clip();
   drawBackground(x, opts.bg || face.bg);
   x.drawImage(el.base, 0, 0);
-  for (const k of MK_LAYERS) if (k !== 'shine') x.drawImage(lctx[k].canvas, 0, 0);
+  for (const k of MK_LAYERS) if (!OWN_EL[k]) x.drawImage(lctx[k].canvas, 0, 0);
   x.globalCompositeOperation = 'multiply';
   x.drawImage(el.shade, 0, 0);
   x.globalCompositeOperation = 'source-over';
   x.drawImage(el.shine, 0, 0);
   x.drawImage(el.feat, 0, 0);
+  x.drawImage(el.doodle, 0, 0);
   for (const a of accs) {
     const d = ACC_MAP[a.key];
     if (!d) continue;
@@ -1236,7 +1323,11 @@ const FIN_BG = ['', '#FFFFFF', '#FFE3EF', '#DFF1FF', '#E2F7EC', '#FFF1D0', '#EFE
 function styleName() {
   // 입술·눈두덩에 칠해진 색 이름으로 짓는다 (외모 점수가 아니라 고른 색을 칭찬)
   const has = (k) => {
-    const d = lctx[k].getImageData(500, 860, 200, 100).data;
+    const [x0, y0] = tp(500, 860);
+    const [x1, y1] = tp(700, 960);
+    const rx = clamp(Math.min(x0, x1) | 0, 0, FW - 1);
+    const ry = clamp(Math.min(y0, y1) | 0, 0, FH - 1);
+    const d = lctx[k].getImageData(rx, ry, Math.max(1, Math.abs(x1 - x0) | 0), Math.max(1, Math.abs(y1 - y0) | 0)).data;
     for (let i = 3; i < d.length; i += 64) if (d[i] > 30) return true;
     return false;
   };
@@ -1292,6 +1383,8 @@ function openFinish() {
 }
 
 async function renderFinish() {
+  // 올린 사진은 사진 자체가 배경이라 배경 고르기를 숨긴다
+  $('#finBg').hidden = $('#finBg').previousElementSibling.hidden = !!face.custom;
   $('#finBg').innerHTML = FIN_BG.map(
     (c) => `<button class="opt ${(finishOpts.bg || '') === c ? 'on' : ''}" data-bg="${c}" style="--c:${c || face.bg}" aria-label="${c ? '배경 ' + c : '기본 배경'}">${c ? '' : '기본'}</button>`,
   ).join('');
@@ -1319,6 +1412,12 @@ const defaultThumbs = new Map();
 let thumbUrls = [];
 
 async function defaultThumb(f) {
+  if (f.custom) {
+    const blob = await getFile(`face_${f.id}`, 'thumb');
+    const u = blob ? URL.createObjectURL(blob) : '';
+    if (u) thumbUrls.push(u);
+    return u;
+  }
   if (!defaultThumbs.has(f.id)) {
     const c = faceThumb(f, 360);
     defaultThumbs.set(f.id, URL.createObjectURL(await toBlob(c, 'image/jpeg', 0.88)));
@@ -1328,12 +1427,14 @@ async function defaultThumb(f) {
 }
 
 const FACE_BANDS = ['#FFE3EF', '#E3F2FF', '#FFF1D0', '#EFE8FF', '#E2F7EC', '#FFE6DC'];
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 export async function renderMakeupHome(container) {
   for (const u of thumbUrls) URL.revokeObjectURL(u);
   thumbUrls = [];
+  const all = await allFaces();
   const cards = await Promise.all(
-    FACES.map(async (f, i) => {
+    all.map(async (f, i) => {
       const saved = await getSetting(`mk:${f.id}`, null);
       let src;
       if (saved?.thumb) {
@@ -1341,14 +1442,148 @@ export async function renderMakeupHome(container) {
         thumbUrls.push(src);
       } else src = await defaultThumb(f);
       const busy = saved && (saved.acc?.length || saved.thumb);
-      return `<article class="card face-card" data-face="${f.id}" style="animation-delay:${i * 30}ms;--band:${FACE_BANDS[i % FACE_BANDS.length]}">
+      return `<article class="card face-card" data-face="${esc(f.id)}" style="animation-delay:${Math.min(i, 12) * 30}ms;--band:${FACE_BANDS[i % FACE_BANDS.length]}">
         <div class="thumb"><img alt="" src="${src}">${busy ? '<span class="sticker sky">꾸미는 중</span>' : ''}</div>
-        <div class="band"><div><div class="title">${f.name}</div><div class="sub">화장 · 액세서리</div></div></div></article>`;
+        <div class="band"><div><div class="title">${esc(f.name)}</div><div class="sub">${f.custom ? '내가 넣은 얼굴' : '화장 · 액세서리'}</div></div></div></article>`;
     }),
   );
   container.innerHTML = `<div class="grid faces">${cards.join('')}</div>`;
   container.querySelector('.grid').addEventListener('click', (e) => {
     const c = e.target.closest('[data-face]');
-    if (c) openMakeup(FACES.find((f) => f.id === c.dataset.face));
+    if (c) openMakeup(all.find((f) => f.id === c.dataset.face));
   });
+}
+
+// ---------- 내가 넣은 얼굴 (가족·연예인 사진) ----------
+// 목록은 설정 'customFaces'에, 사진은 files 'face_{id}:photo' · 'face_{id}:thumb'에 둔다.
+// lm: 화면(1200×1500) 좌표의 왼눈 l · 오른눈 r · 입 m (화면에서 본 왼쪽·오른쪽)
+const toFace = (c) => ({ ...c, custom: true, bg: '#FFF1D0' });
+
+export async function customFaces() {
+  return getSetting('customFaces', []);
+}
+
+export async function allFaces() {
+  return [...FACES, ...(await customFaces()).map(toFace)];
+}
+
+// 사진을 1200×1500 종이에 맞춰 넣고(빈 곳은 크림색), 눈·입 점은 일단 가운데 근처에 둔다
+export async function addCustomFace(file) {
+  const img = await loadImage(file);
+  const fitted = drawFit(img, FH, null, true);
+  const c = makeCanvas(FW, FH);
+  const x = c.getContext('2d');
+  x.fillStyle = '#FFF1D0';
+  x.fillRect(0, 0, FW, FH);
+  const s = Math.min(FW / fitted.width, FH / fitted.height);
+  const w = fitted.width * s;
+  const h = fitted.height * s;
+  x.drawImage(fitted, (FW - w) / 2, (FH - h) / 2, w, h);
+  freeCanvas(fitted);
+  const list = await customFaces();
+  const id = uid('f');
+  // 처음 점 위치 = 기본 얼굴의 눈·입 자리 (사진을 맞춘 뒤 옮긴다)
+  const face = { id, name: `얼굴 ${list.length + 1}`, createdAt: Date.now(), lm: { l: [...EYES_AT[0]], r: [...EYES_AT[1]], m: [...MOUTH_AT] } };
+  await putFile(`face_${id}`, 'photo', await toBlob(c, 'image/jpeg', 0.9));
+  const t = drawFit(c, 360, '#fff');
+  await putFile(`face_${id}`, 'thumb', await toBlob(t, 'image/jpeg', 0.85));
+  freeCanvas(t);
+  freeCanvas(c);
+  await setSetting('customFaces', [...list, face]);
+  return face;
+}
+
+export async function updateCustomFace(id, patch) {
+  const list = await customFaces();
+  const i = list.findIndex((f) => f.id === id);
+  if (i < 0) return;
+  list[i] = { ...list[i], ...patch };
+  await setSetting('customFaces', list);
+}
+
+// 얼굴 사진과 그 얼굴에 한 화장·액세서리까지 지운다 (내 작품에 건 그림은 남는다)
+export async function deleteCustomFace(id) {
+  await setSetting('customFaces', (await customFaces()).filter((f) => f.id !== id));
+  await Promise.all(['photo', 'thumb'].map((k) => delFile(`face_${id}`, k)));
+  await Promise.all([...MK_LAYERS, 'paint'].map((k) => delFile(`mk_${id}`, k)));
+  await db.del('kv', `mk:${id}`);
+}
+
+// ---------- 눈·입 위치 맞추기 ----------
+// 사진 위에 점 세 개(왼눈·오른눈·입)를 끌어 놓으면, 본 얼굴 윤곽(초록 선)이 따라 움직여 맞는지 보여 준다
+let fitting = null;
+
+function bindFaceFit() {
+  const dlg = $('#dlgFaceFit');
+  const wrap = $('#fitWrap');
+  wrap.addEventListener('pointerdown', (e) => {
+    const m = e.target.closest('[data-k]');
+    if (!m || !fitting) return;
+    fitting.drag = { k: m.dataset.k, id: e.pointerId };
+    try {
+      wrap.setPointerCapture(e.pointerId);
+    } catch {}
+    e.preventDefault();
+  });
+  wrap.addEventListener('pointermove', (e) => {
+    if (!fitting?.drag || e.pointerId !== fitting.drag.id) return;
+    const r = $('#fitCanvas').getBoundingClientRect();
+    fitting.lm[fitting.drag.k] = [clamp(((e.clientX - r.left) / r.width) * FW, 0, FW), clamp(((e.clientY - r.top) / r.height) * FH, 0, FH)];
+    drawFit_();
+  });
+  const end = () => fitting && (fitting.drag = null);
+  wrap.addEventListener('pointerup', end);
+  wrap.addEventListener('pointercancel', end);
+  dlg.addEventListener('click', async (e) => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (!act || !fitting) return;
+    if (act === 'save') {
+      const name = $('#fitName').value.trim() || fitting.face.name;
+      await updateCustomFace(fitting.face.id, { lm: fitting.lm, name });
+      toast('얼굴을 저장했어요');
+    }
+    dlg.close();
+    const done = fitting.onDone;
+    fitting = null;
+    done?.();
+  });
+}
+
+export async function openFaceFit(face, onDone) {
+  const blob = await getFile(`face_${face.id}`, 'photo');
+  if (!blob) return;
+  fitting = { face, lm: structuredClone(face.lm), img: await loadImage(blob), onDone, drag: null };
+  $('#fitName').value = face.name;
+  const c = $('#fitCanvas');
+  c.width = 600;
+  c.height = 750;
+  $('#dlgFaceFit').showModal();
+  drawFit_();
+}
+
+function drawFit_() {
+  const c = $('#fitCanvas');
+  const x = c.getContext('2d');
+  const k = c.width / FW;
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  x.clearRect(0, 0, c.width, c.height);
+  x.drawImage(fitting.img, 0, 0, c.width, c.height);
+  // 지금 점 위치로 본 얼굴 윤곽을 사진 위에 옮겨 그린다
+  const m = affineFrom([fitting.lm.l, fitting.lm.r, fitting.lm.m]);
+  x.setTransform(new DOMMatrix([k, 0, 0, k, 0, 0]).multiply(m));
+  x.strokeStyle = 'rgba(45,190,126,0.95)';
+  x.lineWidth = 6;
+  x.setLineDash([14, 10]);
+  x.stroke(FACE_PATH());
+  x.setLineDash([]);
+  x.lineWidth = 4;
+  for (const [ex, ey] of EYES_AT) x.stroke(eyePath(ex, ey));
+  LIP_PATHS().forEach((p) => x.stroke(p));
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  for (const [key, el2] of Object.entries({ l: '#fitL', r: '#fitR', m: '#fitM' })) {
+    const [px, py] = fitting.lm[key];
+    const n = $(el2);
+    n.style.left = (px / FW) * 100 + '%';
+    n.style.top = (py / FH) * 100 + '%';
+  }
 }

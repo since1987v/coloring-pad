@@ -5,6 +5,7 @@ import { initEditor, openEditor } from './editor.js';
 import { initLibrary, refreshLibrary, adminAction } from './library.js';
 import { initTrace } from './trace.js';
 import { initMakeup, setFreeMode } from './makeup.js';
+import { initManage, openManage } from './manage.js';
 import { setRate, setMuted, setVoice, voicesFor, speak } from './speech.js';
 
 // 홈 화면 앱으로 실행하면 이미 전체화면이라 전체화면 버튼을 숨긴다
@@ -22,6 +23,7 @@ try {
   initTrace();
   await initMakeup({ onClose: () => refreshLibrary() });
   await initLibrary({ open: (p) => openEditor(p) });
+  initManage();
   await initSettings();
 } catch (err) {
   console.error(err);
@@ -94,10 +96,11 @@ async function initSettings() {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (!act) return;
     dlg.close();
-    if (act !== 'close') adminAction(act);
+    if (act === 'manage') openManage();
+    else if (act !== 'close') adminAction(act);
   });
 
-  // 잠금 중에는 설정 버튼을 1.2초 꾹 눌러야 열린다
+  // 설정(그림 넣기·지우기가 들어 있다)은 아이가 쉽게 못 열도록 언제나 1.2초 꾹 눌러야 열린다
   const btn = $('#btnSettings');
   let timer = 0;
   const cancel = () => {
@@ -105,7 +108,6 @@ async function initSettings() {
     btn.classList.remove('holding');
   };
   btn.addEventListener('pointerdown', () => {
-    if (!document.body.classList.contains('locked')) return;
     btn.classList.add('holding');
     timer = setTimeout(() => {
       cancel();
@@ -116,8 +118,7 @@ async function initSettings() {
   btn.addEventListener('pointerleave', cancel);
   btn.addEventListener('pointercancel', cancel);
   btn.addEventListener('click', () => {
-    if (document.body.classList.contains('locked')) toast('어른은 설정 버튼을 꾹 눌러 주세요');
-    else openSettings();
+    if (!dlg.open) toast('어른은 설정 버튼을 꾹 눌러 주세요');
   });
   const openSettings = async () => {
     await fillVoices();

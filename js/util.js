@@ -99,6 +99,73 @@ export function cleanLineArt(c) {
   return c;
 }
 
+// 사진처럼 명암(중간 밝기)이 많은 그림인지. 선 그림은 거의 흰색·검은색뿐이다
+export function looksLikePhoto(c) {
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  let mid = 0;
+  let n = 0;
+  for (let i = 0; i < d.length; i += 4 * 17) {
+    const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    if (l > 50 && l < 205) mid++;
+    n++;
+  }
+  return mid / n > 0.3;
+}
+
+// 가로·세로로 한 번씩 평균을 내는 빠른 흐림 (반지름 r)
+function boxBlur(src, w, h, r) {
+  const tmp = new Float32Array(w * h);
+  const out = new Float32Array(w * h);
+  const k = 1 / (2 * r + 1);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let s = 0;
+    for (let x = -r; x <= r; x++) s += src[row + Math.min(w - 1, Math.max(0, x))];
+    for (let x = 0; x < w; x++) {
+      tmp[row + x] = s * k;
+      s += src[row + Math.min(w - 1, x + r + 1)] - src[row + Math.max(0, x - r)];
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let s = 0;
+    for (let y = -r; y <= r; y++) s += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (let y = 0; y < h; y++) {
+      out[y * w + x] = s * k;
+      s += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+    }
+  }
+  return out;
+}
+
+// 사진을 연한 연필 스케치 도안으로: 흑백 → 반전해 흐린 것과 '닷지' 합성(윤곽만 남음) → 옅은 음영은 날린다
+export function photoToSketch(c) {
+  const x = c.getContext('2d');
+  const w = c.width;
+  const h = c.height;
+  const img = x.getImageData(0, 0, w, h);
+  const p = img.data;
+  const n = w * h;
+  const g = new Float32Array(n);
+  const inv = new Float32Array(n);
+  for (let i = 0, j = 0; i < n; i++, j += 4) {
+    const a = p[j + 3] / 255;
+    g[i] = (0.299 * p[j] + 0.587 * p[j + 1] + 0.114 * p[j + 2]) * a + 255 * (1 - a);
+    inv[i] = 255 - g[i];
+  }
+  const r = Math.max(2, Math.round(Math.max(w, h) / 160));
+  const b = boxBlur(boxBlur(inv, w, h, r), w, h, r);
+  for (let i = 0, j = 0; i < n; i++, j += 4) {
+    let v = b[i] >= 254 ? 255 : Math.min(255, (g[i] * 255) / (255 - b[i]));
+    // 진하기(0~1)를 거듭제곱으로 눌러서 옅은 그림자는 거의 없애고 윤곽선만 또렷하게 둔다
+    const dark = Math.min(1, Math.pow((255 - v) / 255, 1.25) * 2.4);
+    v = dark < 0.07 ? 255 : 255 - dark * 255;
+    p[j] = p[j + 1] = p[j + 2] = v;
+    p[j + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  return c;
+}
+
 export function hexToRgb(hex) {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];

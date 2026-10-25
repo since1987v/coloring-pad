@@ -1,6 +1,6 @@
 // 앱 파일을 캐시해 두고 오프라인에서도 열리게 한다.
 // 캐시를 먼저 보여 주고 뒤에서 새 버전을 받아 두므로, 업데이트는 다음 실행 때 반영된다.
-const CACHE = 'coloring-pad-v6';
+const CACHE = 'coloring-pad-v7';
 // 글꼴(Google Fonts)은 처음 한 번 받아 두고 계속 쓴다. 앱 버전이 바뀌어도 지우지 않는다
 const FONTS = 'coloring-pad-fonts';
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
@@ -8,7 +8,7 @@ const SHELL = [
   './', 'index.html', 'style.css', 'manifest.webmanifest',
   'js/app.js', 'js/util.js', 'js/store.js', 'js/brushes.js', 'js/fill.js', 'js/editor.js', 'js/library.js',
   'js/icons.js', 'js/speech.js', 'js/progress.js', 'js/letters.js', 'js/trace.js',
-  'js/faces.js', 'js/accessories.js', 'js/makeup.js',
+  'js/faces.js', 'js/accessories.js', 'js/makeup.js', 'js/manage.js',
   'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 
